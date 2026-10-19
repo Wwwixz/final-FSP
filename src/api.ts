@@ -58,6 +58,9 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
       headers: { ...(init?.body ? { 'Content-Type': 'application/json; charset=utf-8' } : {}), ...init?.headers },
     })
   } catch {
+    if (window.location.protocol === 'https:' && API_BASE_URL.startsWith('http:')) {
+      throw new ApiError('Страница открыта по HTTPS, а API указан по HTTP. Браузер блокирует такой запрос. Нужен HTTPS-адрес API.')
+    }
     throw new ApiError('Не удалось связаться с сервером. Проверьте адрес API и подключение к сети.')
   }
   if (!response.ok) {
