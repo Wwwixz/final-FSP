@@ -74,8 +74,8 @@ body:has(.search-page) .page-content--flush{isolation:isolate;overflow:hidden;pa
 .filter-label{display:block;margin-bottom:9px;color:#22304a;font-size:12px;font-weight:700}
 .period-box{position:relative;display:flex;align-items:center;gap:9px;height:44px;border:1px solid #e5eaf1;border-radius:10px;background:#fff;padding:0 12px;color:#8b95a6}
 .period-box:focus-within{border-color:#f0a9b4}
-.period-box input[type=date]{flex:1;min-width:0;border:0;background:transparent;padding:0;color:#39465c;font-size:11.5px;font-weight:600;outline:0}
-.period-box input[type=date]::-webkit-calendar-picker-indicator{display:none}
+.period-box input[type=date]{flex:1;min-width:0;border:0;background:transparent;padding:0;color:#39465c;font-size:11.5px;font-weight:600;outline:0;cursor:pointer}
+.period-box input[type=date]::-webkit-calendar-picker-indicator{cursor:pointer;opacity:.68}
 .period-dash{color:#aeb6c4}
 .region-box{position:relative;display:flex;align-items:center;gap:9px;height:44px;border:1px solid #e5eaf1;border-radius:10px;background:#fff;padding:0 12px;color:#8b95a6}
 .region-box:focus-within{border-color:#f0a9b4}

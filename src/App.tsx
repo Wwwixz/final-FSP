@@ -30,6 +30,21 @@ const getCityBackground = (themeMode: ThemeMode): CityBackground => {
   return hour >= 5 && hour < 17 ? 'day' : 'evening'
 }
 
+const formatDateInput = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const todayInputValue = () => formatDateInput(new Date())
+const openDatePicker = (input: HTMLInputElement) => input.showPicker?.()
+const monthAgoInputValue = () => {
+  const date = new Date()
+  date.setDate(date.getDate() - 30)
+  return formatDateInput(date)
+}
+
 const initialSources: Source[] = [
   { id: 1, name: 'Наш Красноярский край', platform: 'VK', url: 'vk.com/krskstate', followers: '245K', region: 'Красноярский край', active: true, color: '#284b83' },
   { id: 2, name: 'Спорт_Красноярск', platform: 'VK', url: 'vk.com/sportkrsk', followers: '128K', region: 'Красноярский край', active: true, color: '#26364e' },
@@ -39,14 +54,14 @@ const initialSources: Source[] = [
   { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
 const initialSaved: SavedQuery[] = [
-  { id: 1, name: 'Ледовый дворец', query: 'открытие ледового дворца Красноярск', period: '01.03.2024 — 31.03.2024', region: 'Красноярский край', favorite: true },
-  { id: 2, name: 'Наводнение 2024', query: 'наводнение Красноярский край', period: '01.04.2024 — 30.04.2024', region: 'Красноярский край', favorite: true },
-  { id: 3, name: 'Губернатор края', query: 'губернатор Красноярского края', period: '01.01.2024 — 31.03.2024', region: 'Красноярский край', favorite: true },
-  { id: 4, name: 'Развитие спорта', query: 'развитие спорта Красноярск', period: '01.01.2024 — 31.12.2024', region: 'Красноярский край', favorite: true },
-  { id: 5, name: 'Строительство', query: 'строительство Красноярск', period: '01.01.2024 — 31.12.2024', region: 'Красноярский край', favorite: true },
+  { id: 1, name: 'Ледовый дворец', query: 'открытие ледового дворца Красноярск', period: '01.03.2026 — 31.03.2026', region: 'Красноярский край', favorite: true },
+  { id: 2, name: 'Наводнение 2026', query: 'наводнение Красноярский край', period: '01.04.2026 — 30.04.2026', region: 'Красноярский край', favorite: true },
+  { id: 3, name: 'Губернатор края', query: 'губернатор Красноярского края', period: '01.01.2026 — 31.03.2026', region: 'Красноярский край', favorite: true },
+  { id: 4, name: 'Развитие спорта', query: 'развитие спорта Красноярск', period: '01.01.2026 — 31.12.2026', region: 'Красноярский край', favorite: true },
+  { id: 5, name: 'Строительство', query: 'строительство Красноярск', period: '01.01.2026 — 31.12.2026', region: 'Красноярский край', favorite: true },
 ]
 const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX' }
-const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2024', 'развитие спорта']
+const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2026', 'развитие спорта']
 
 const platformColor: Record<Platform, string> = { VK: '#5278d9', OK: '#e98a35', MAX: '#7358ce' }
 const publicationImages = ['/images/arena-exterior.jpg', '/images/arena-interior.jpg', '/images/hockey-training.jpg', '/images/arena-evening.jpg', '/images/arena-ceremony.jpg']
@@ -89,8 +104,8 @@ function App() {
   const [page, setPage] = useState<Page>('results')
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
-  const [periodStart, setPeriodStart] = useState('2024-03-01')
-  const [periodEnd, setPeriodEnd] = useState('2024-03-31')
+  const [periodStart, setPeriodStart] = useState(monthAgoInputValue)
+  const [periodEnd, setPeriodEnd] = useState(todayInputValue)
   const [region, setRegion] = useState('Красноярский край')
   const [regions, setRegions] = useState(['Красноярский край', 'Красноярск', 'Ачинск', 'Норильск'])
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
@@ -129,6 +144,12 @@ function App() {
       window.removeEventListener('focus', updateBackground)
     }
   }, [themeMode])
+
+  useEffect(() => {
+    if (!notice) return
+    const timeout = window.setTimeout(() => setNotice(''), 5_000)
+    return () => window.clearTimeout(timeout)
+  }, [notice])
 
   useEffect(() => {
     let cancelled = false
@@ -287,9 +308,8 @@ function App() {
 
   if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={() => setPage('results')}/>
   return <div className="app-shell" data-city-background={cityBackground}>
-    <ThemeBackgroundVideo variant={cityBackground}/>
     <aside className="app-sidebar">
-      <div className="brand-card"><div className="brand-mark brand-flame" aria-hidden="true"><i/><i/><i/></div><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
+      <div className="brand-card"><img className="brand-emblem" src="/favicon.png" alt=""/><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
       <nav className="sidebar-nav">
         <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Результаты</NavItem>
         <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
@@ -302,7 +322,15 @@ function App() {
     </aside>
     <main className="main-area">
       <div className="page-content">
-        {notice && <div className="notice"><Check size={16}/>{notice}<button onClick={() => setNotice('')} aria-label="Закрыть"><X size={15}/></button></div>}
+        {notice && <div className="notice" role="status" aria-live="polite">
+          <span className="notice-icon" aria-hidden="true"><Check size={17}/></span>
+          <span className="notice-content">
+            <strong>{notice.startsWith('Поиск завершён частично') ? 'Поиск завершён частично' : 'Поиск завершён'}</strong>
+            <span>{notice.replace(/^Поиск завершён(?: частично)?:\s*/, '')}</span>
+          </span>
+          <button className="notice-close" onClick={() => setNotice('')} aria-label="Закрыть уведомление"><X size={16}/></button>
+          <span className="notice-progress" aria-hidden="true"/>
+        </div>}
         {apiError && <div className="api-error"><CircleAlert size={16}/><span>{apiError}</span><button onClick={() => setApiError('')} aria-label="Закрыть"><X size={15}/></button></div>}
         {page === 'results' && <ResultsPage
           results={results} query={query} setQuery={setQuery} hasSearched={hasSearched} isSearching={isSearching} searchStatus={searchStatus}
@@ -325,25 +353,8 @@ function App() {
   </div>
 }
 
-function ThemeBackgroundVideo({ variant }: { variant: CityBackground }) {
-  const videoSrc = variant === 'evening' ? '/video/dark-theme.mp4' : '/video/light-theme.mp4'
-
-  return <video
-    key={variant}
-    className="theme-background-video"
-    src={videoSrc}
-    autoPlay
-    muted
-    loop
-    playsInline
-    preload="metadata"
-    aria-hidden="true"
-  />
-}
-
 function AuthScreen({ mode, cityBackground, onSwitch, onDone }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
   return <div className={`auth-screen auth-screen--${mode}`} data-city-background={cityBackground}>
-    <ThemeBackgroundVideo variant={cityBackground}/>
     <div className="auth-logo"><span className="auth-flame" aria-hidden="true"><i/><i/><i/></span><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
     {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
   </div>
@@ -462,8 +473,8 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
     </div>
     <div className="results-search-examples"><span>Например:</span>{exampleTopics.map(topic => <button type="button" key={topic} onClick={() => setQuery(topic)}>{topic}</button>)}</div>
     <div className="results-search-filters">
-      <label><span>Период с</span><div><CalendarDays size={14}/><input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)}/></div></label>
-      <label><span>по</span><div><CalendarDays size={14}/><input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)}/></div></label>
+      <label><span>Период с</span><div><CalendarDays size={14}/><input type="date" value={periodStart} max={periodEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)}/></div></label>
+      <label><span>по</span><div><CalendarDays size={14}/><input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)}/></div></label>
       <label className="results-region"><span>Регион</span><div><MapPin size={14}/><select value={region} onChange={event => setRegion(event.target.value)}>{regions.map(item => <option key={item}>{item}</option>)}</select><ChevronDown size={13}/></div></label>
       <fieldset><legend>Площадки</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} className={platforms.includes(item) ? 'selected' : ''} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={20}/>{item}</button>)}</fieldset>
     </div>
@@ -484,9 +495,9 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
             <span className="filter-label">Период публикации</span>
             <div className="period-box">
               <CalendarDays size={17}/>
-              <input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
+              <input type="date" value={periodStart} max={periodEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
               <span className="period-dash">—</span>
-              <input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
+              <input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
               <ChevronDown size={15}/>
             </div>
           </div>
@@ -602,16 +613,23 @@ function PublicationPage({ item, onBack }: { item: Publication; onBack: () => vo
 }
 
 function AnalyticsPage() {
-  const [range, setRange] = useState('01.03.2024 — 31.03.2024')
+  const [analyticsStart, setAnalyticsStart] = useState(monthAgoInputValue)
+  const [analyticsEnd, setAnalyticsEnd] = useState(todayInputValue)
   const [platform, setPlatform] = useState<'Все' | Platform>('Все')
+  const startTime = new Date(`${analyticsStart || monthAgoInputValue()}T00:00:00`).getTime()
+  const endTime = new Date(`${analyticsEnd || todayInputValue()}T00:00:00`).getTime()
+  const chartLabels = Array.from({ length: 7 }, (_, index) => {
+    const timestamp = startTime + ((endTime - startTime) * index) / 6
+    return new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' }).format(new Date(timestamp))
+  })
   const series = [
     { name: 'ВКонтакте', value: 'VK' as const, color: '#668bfa', points: '0,122 40,115 80,104 120,112 160,93 200,98 240,77 280,88 320,55 360,69 400,50 440,64 480,39 520,50 560,32 600,43' },
     { name: 'Одноклассники', value: 'OK' as const, color: '#f59a35', points: '0,145 40,139 80,132 120,136 160,126 200,130 240,115 280,121 320,107 360,111 400,93 440,105 480,84 520,91 560,75 600,80' },
     { name: 'MAX', value: 'MAX' as const, color: '#db477a', points: '0,158 40,153 80,150 120,143 160,147 200,135 240,139 280,126 320,130 360,117 400,122 440,105 480,114 520,96 560,100 600,86' },
   ]
-  return <div className="design-page analytics-page"><div className="design-page-heading"><div><h1>Аналитика</h1><p>Обзор найденных публикаций и активности по теме</p></div><label className="analytics-date"><CalendarDays size={14}/><select value={range} onChange={event => setRange(event.target.value)}><option>01.03.2024 — 31.03.2024</option><option>01.02.2024 — 29.02.2024</option><option>01.01.2024 — 31.01.2024</option></select><ChevronDown size={12}/></label></div><div className="analytics-demo-note"><CircleAlert size={13}/>Демонстрационные данные за выбранный период</div>
+  return <div className="design-page analytics-page"><div className="design-page-heading"><div><h1>Аналитика</h1><p>Обзор найденных публикаций и активности по теме</p></div><div className="analytics-date"><CalendarDays size={14}/><input type="date" value={analyticsStart} max={analyticsEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setAnalyticsStart(event.target.value)} aria-label="Начало периода аналитики"/><span>—</span><input type="date" value={analyticsEnd} min={analyticsStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setAnalyticsEnd(event.target.value)} aria-label="Конец периода аналитики"/></div></div><div className="analytics-demo-note"><CircleAlert size={13}/>Демонстрационные данные за выбранный период</div>
     <div className="analytics-stats"><div className="analytics-stat total"><span>Всего публикаций</span><div>248 <small>шт.</small></div><em><TrendingUp size={12}/>+12% к прошлому периоду</em></div><div className="analytics-stat"><span><i className="analytics-platform vk">ᴠκ</i>ВКонтакте</span><div>124</div><em><ArrowUpRight size={12}/>+8%</em></div><div className="analytics-stat"><span><i className="analytics-platform ok">✦</i>Одноклассники</span><div>86</div><em><ArrowUpRight size={12}/>+15%</em></div><div className="analytics-stat"><span><i className="analytics-platform max">●</i>MAX</span><div>38</div><em><ArrowUpRight size={12}/>+6%</em></div></div>
-    <div className="analytics-grid"><section className="design-card trend-card"><div className="design-card-heading"><div><h2>Динамика публикаций</h2><p>Количество публикаций по дням</p></div><div className="chart-legend"><button onClick={() => setPlatform('Все')} className={platform === 'Все' ? 'legend-active' : ''}><i style={{background:'#33415d'}}/>Все</button>{series.map(item => <button key={item.name} onClick={() => setPlatform(item.value)} className={platform === item.value ? 'legend-active' : ''}><i style={{background:item.color}}/>{item.name}</button>)}</div></div><div className="chart-wrap"><div className="chart-y-labels"><span>80</span><span>60</span><span>40</span><span>20</span><span>0</span></div><svg className="trend-chart" viewBox="0 0 600 180" role="img" aria-label="Динамика публикаций"><g className="chart-grid">{[20,55,90,125,160].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y}/>)}</g>{series.filter(item => platform === 'Все' || item.value === platform).map(item => <polyline key={item.name} points={item.points} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>)}</svg></div><div className="chart-x-labels"><span>1 мар</span><span>6 мар</span><span>11 мар</span><span>16 мар</span><span>21 мар</span><span>26 мар</span><span>31 мар</span></div><div className="chart-footnote"><span><span className="live-dot"/>Пик активности</span><b>17 марта · 48 публикаций</b></div></section>
+    <div className="analytics-grid"><section className="design-card trend-card"><div className="design-card-heading"><div><h2>Динамика публикаций</h2><p>Количество публикаций по дням</p></div><div className="chart-legend"><button onClick={() => setPlatform('Все')} className={platform === 'Все' ? 'legend-active' : ''}><i style={{background:'#33415d'}}/>Все</button>{series.map(item => <button key={item.name} onClick={() => setPlatform(item.value)} className={platform === item.value ? 'legend-active' : ''}><i style={{background:item.color}}/>{item.name}</button>)}</div></div><div className="chart-wrap"><div className="chart-y-labels"><span>80</span><span>60</span><span>40</span><span>20</span><span>0</span></div><svg className="trend-chart" viewBox="0 0 600 180" role="img" aria-label="Динамика публикаций"><g className="chart-grid">{[20,55,90,125,160].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y}/>)}</g>{series.filter(item => platform === 'Все' || item.value === platform).map(item => <polyline key={item.name} points={item.points} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>)}</svg></div><div className="chart-x-labels">{chartLabels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div><div className="chart-footnote"><span><span className="live-dot"/>Пик активности</span><b>{chartLabels[3]} · 48 публикаций</b></div></section>
       <section className="design-card topics-card"><div className="design-card-heading"><div><h2>Типы контента</h2><p>Распределение публикаций</p></div></div><div className="donut-area"><div className="donut-chart"><div><b>248</b><span>публикаций</span></div></div><div className="donut-legend"><span><i className="donut-posts"/>Посты <b>42%</b></span><span><i className="donut-repost"/>Репосты <b>18%</b></span><span><i className="donut-video"/>Видео <b>13%</b></span><span><i className="donut-photo"/>Фото <b>24%</b></span><span><i className="donut-comments"/>Комментарии <b>3%</b></span></div></div><div className="topic-divider"/><h3>Популярные темы</h3><div className="analytics-topics">{([['Ледовый дворец',68],['Открытие',51],['Красноярск',43],['Спорт',35]] as [string,number][]).map(([name,count]) => <div key={name}><span>{name}</span><div><i style={{width:`${count/68*100}%`}}/></div><b>{count}</b></div>)}</div></section></div>
     <div className="analytics-footer"><span>Показатели рассчитаны по результатам поиска</span><button><ArrowDownRight size={13}/>Скачать отчёт</button></div>
   </div>
