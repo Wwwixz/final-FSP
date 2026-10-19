@@ -1,15 +1,24 @@
-export const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || 'http://109.196.167.225:8080').replace(/\/$/, '')
-
-export type Platform = 'VK' | 'OK' | 'MAX'
+export type ApiPlatform = 'VK' | 'OK' | 'MAX'
 export type SearchType = 'TOPIC' | 'EVENT' | 'PERSON' | 'NEWS_TEXT'
 export type SearchMode = 'BY_SOURCES' | 'ALL_PLATFORMS'
 export type SearchStatus = 'RUNNING' | 'COMPLETED' | 'COMPLETED_PARTIAL' | 'FAILED'
-export type PublicationSort = 'relevance' | 'date' | 'found'
 
-export interface PlatformDto { code: Platform; title: string; realApiSupported: boolean }
-export interface SourceDto { id: number; name: string; platform: Platform; url: string; description: string | null; active: boolean; createdAt: string }
-export type SourceInput = Pick<SourceDto, 'name' | 'platform' | 'url' | 'description' | 'active'>
-export interface SearchInput {
+export type ApiSource = {
+  id: number
+  name: string
+  platform: ApiPlatform
+  url: string
+  description: string | null
+  active: boolean
+  createdAt: string
+}
+
+export type SourceInput = Pick<ApiSource, 'name' | 'platform' | 'url'> & {
+  description?: string
+  active?: boolean
+}
+
+export type SearchInput = {
   query: string
   additionalInfo?: string
   searchType: SearchType
@@ -18,86 +27,175 @@ export interface SearchInput {
   dateFrom?: string
   dateTo?: string
   region?: string
-  provider: 'demo' | 'real'
-  useAi: boolean
+  provider?: 'demo' | 'real'
+  useAi?: boolean
 }
-export interface SearchSummary {
-  id: number; query: string; searchType: SearchType; mode: SearchMode
-  dateFrom: string | null; dateTo: string | null; region: string | null
-  status: SearchStatus; totalFound: number; sourcesTotal: number
-  sourcesProcessed: number; sourcesFailed: number; createdAt: string; finishedAt: string | null
+
+export type SourceSearchStatus = {
+  id: number
+  sourceId: number
+  sourceName: string
+  platform: ApiPlatform
+  status: 'PENDING' | 'OK' | 'UNAVAILABLE' | 'ERROR'
+  foundCount: number
+  message: string | null
 }
-export interface SearchSource {
-  id: number; sourceId: number; sourceName: string; platform: Platform
-  status: 'PENDING' | 'OK' | 'UNAVAILABLE' | 'ERROR'; foundCount: number; message: string | null
+
+export type ApiSearch = {
+  id: number
+  query: string
+  additionalInfo?: string | null
+  searchType: SearchType
+  mode: SearchMode
+  dateFrom: string | null
+  dateTo: string | null
+  region: string | null
+  status: SearchStatus
+  provider?: string
+  useAi?: boolean
+  totalFound: number
+  duplicatesSkipped?: number
+  irrelevantSkipped?: number
+  sourcesTotal: number
+  sourcesProcessed: number
+  sourcesOk?: number
+  sourcesFailed: number
+  error?: string | null
+  createdAt: string
+  startedAt?: string | null
+  finishedAt: string | null
+  sources?: SourceSearchStatus[]
 }
-export interface SearchDetail extends SearchSummary {
-  additionalInfo: string | null; provider: 'demo' | 'real'; useAi: boolean
-  duplicatesSkipped: number; irrelevantSkipped: number; sourcesOk: number
-  error: string | null; startedAt: string | null; sources: SearchSource[]
+
+export type ApiPublication = {
+  id: number
+  sourceId: number
+  sourceName: string
+  platform: ApiPlatform
+  url: string
+  title: string
+  excerpt: string
+  publishedAt: string | null
+  hasDate: boolean
+  relevance: number
+  aiRelevance: number | null
+  aiComment: string | null
+  likes: number | null
+  reposts: number | null
+  views: number | null
+  foundAt: string
 }
-export interface PublicationDto {
-  id: number; sourceId: number; sourceName: string; platform: Platform; url: string
-  title: string | null; excerpt: string | null; publishedAt: string | null; hasDate: boolean
-  relevance: number | null; aiRelevance: number | null; aiComment: string | null
-  likes: number | null; reposts: number | null; views: number | null; foundAt: string
+
+export type PublicationPage = {
+  content: ApiPublication[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+  last: boolean
 }
-export interface PageResponse<T> { content: T[]; page: number; size: number; totalElements: number; totalPages: number; last: boolean }
-export interface AiStatus { enabled: boolean; configured: boolean; connected: boolean; model: string | null; message: string | null }
+
+export type PlatformInfo = { code: ApiPlatform; title: string; realApiSupported: boolean }
+export type AiStatus = { enabled: boolean; configured: boolean; connected: boolean; model: string; scope: string; message: string }
+export type AiRelevance = { checked: boolean; relevance: number | null; comment: string | null; model: string; message: string }
+
+const configuredBaseUrl = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_BASE_URL
+export const API_BASE_URL = (configuredBaseUrl || 'http://109.196.167.225:8080').replace(/\/$/, '')
 
 export class ApiError extends Error {
-  status?: number
-  constructor(message: string, status?: number) { super(message); this.name = 'ApiError'; this.status = status }
+  status: number
+
+  constructor(message: string, status: number) {
+    super(message)
+    this.name = 'ApiError'
+    this.status = status
+  }
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  let response: Response
-  try {
-    response = await fetch(`${API_BASE_URL}${path}`, {
-      ...init,
-      headers: { ...(init?.body ? { 'Content-Type': 'application/json; charset=utf-8' } : {}), ...init?.headers },
-    })
-  } catch {
-    if (window.location.protocol === 'https:' && API_BASE_URL.startsWith('http:')) {
-      throw new ApiError('Страница открыта по HTTPS, а API указан по HTTP. Браузер блокирует такой запрос. Нужен HTTPS-адрес API.')
-    }
-    throw new ApiError('Не удалось связаться с сервером. Проверьте адрес API и подключение к сети.')
-  }
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...init,
+    headers: {
+      Accept: 'application/json',
+      ...(init?.body ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
+      ...init?.headers,
+    },
+  })
+
+  const rawBody = await response.text()
+
   if (!response.ok) {
-    const problem = await response.json().catch(() => null) as { detail?: string; title?: string } | null
-    throw new ApiError(problem?.detail || problem?.title || `Ошибка сервера: ${response.status}`, response.status)
+    let message = `Ошибка API (${response.status})`
+    try {
+      const body = JSON.parse(rawBody) as { message?: string; error?: string; detail?: string }
+      message = body.message || body.error || body.detail || message
+    } catch {
+      if (rawBody) message = rawBody
+    }
+    throw new ApiError(message, response.status)
   }
-  return response.status === 204 ? undefined as T : await response.json() as T
+
+  if (!rawBody) return undefined as T
+  return JSON.parse(rawBody) as T
 }
 
 export const api = {
-  platforms: () => request<PlatformDto[]>('/api/platforms'),
-  sources: () => request<SourceDto[]>('/api/sources'),
-  createSource: (input: SourceInput) => request<SourceDto>('/api/sources', { method: 'POST', body: JSON.stringify(input) }),
-  updateSource: (id: number, input: SourceInput) => request<SourceDto>(`/api/sources/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
-  deleteSource: (id: number) => request<void>(`/api/sources/${id}`, { method: 'DELETE' }),
-  searches: () => request<SearchSummary[]>('/api/search'),
-  createSearch: (input: SearchInput) => request<SearchDetail>('/api/search', { method: 'POST', body: JSON.stringify(input) }),
-  search: (id: number) => request<SearchDetail>(`/api/search/${id}`),
-  publications: (id: number, page: number, size: number, sort: PublicationSort) => request<PageResponse<PublicationDto>>(`/api/search/${id}/publications?${new URLSearchParams({ page: String(page), size: String(size), sort })}`),
-  restartSearch: (id: number) => request<SearchDetail>(`/api/search/${id}/restart`, { method: 'POST' }),
-  deleteSearch: (id: number) => request<void>(`/api/search/${id}`, { method: 'DELETE' }),
+  health: () => request<{ status: string }>('/api/health'),
+  platforms: () => request<PlatformInfo[]>('/api/platforms'),
+  regions: () => request<string[]>('/api/regions'),
   aiStatus: () => request<AiStatus>('/api/ai/status'),
-  async exportSearch(id: number, format: 'xlsx' | 'docx' = 'xlsx') {
-    let response: Response
-    try { response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`) }
-    catch { throw new ApiError('Не удалось скачать отчёт: нет соединения с сервером.') }
-    if (!response.ok) {
-      const problem = await response.json().catch(() => null) as { detail?: string } | null
-      throw new ApiError(problem?.detail || `Ошибка выгрузки: ${response.status}`, response.status)
-    }
-    const blobUrl = URL.createObjectURL(await response.blob())
-    const link = document.createElement('a')
-    link.href = blobUrl
-    link.download = `otchet-poiska-${id}.${format}`
-    document.body.append(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => URL.revokeObjectURL(blobUrl), 60_000)
+  checkRelevance: (input: { query: string; text: string; additionalInfo?: string; searchType?: SearchType }) =>
+    request<AiRelevance>('/api/ai/relevance', { method: 'POST', body: JSON.stringify(input) }),
+
+  sources: (filters?: { platform?: ApiPlatform; active?: boolean; q?: string }) => {
+    const params = new URLSearchParams()
+    if (filters?.platform) params.set('platform', filters.platform)
+    if (filters?.active !== undefined) params.set('active', String(filters.active))
+    if (filters?.q) params.set('q', filters.q)
+    const query = params.size ? `?${params}` : ''
+    return request<ApiSource[]>(`/api/sources${query}`)
   },
+  source: (id: number) => request<ApiSource>(`/api/sources/${id}`),
+  createSource: (input: SourceInput) => request<ApiSource>('/api/sources', { method: 'POST', body: JSON.stringify(input) }),
+  updateSource: (id: number, input: SourceInput) => request<ApiSource>(`/api/sources/${id}`, { method: 'PUT', body: JSON.stringify(input) }),
+  deleteSource: (id: number) => request<void>(`/api/sources/${id}`, { method: 'DELETE' }),
+
+  searches: () => request<ApiSearch[]>('/api/search'),
+  createSearch: (input: SearchInput) => request<ApiSearch>('/api/search', { method: 'POST', body: JSON.stringify(input) }),
+  search: (id: number) => request<ApiSearch>(`/api/search/${id}`),
+  restartSearch: (id: number) => request<ApiSearch>(`/api/search/${id}/restart`, { method: 'POST' }),
+  deleteSearch: (id: number) => request<void>(`/api/search/${id}`, { method: 'DELETE' }),
+  publications: (id: number, page = 0, size = 100, sort: 'relevance' | 'date' | 'found' = 'relevance') =>
+    request<PublicationPage>(`/api/search/${id}/publications?page=${page}&size=${size}&sort=${sort}`),
+}
+
+export async function waitForSearch(id: number, signal?: AbortSignal): Promise<ApiSearch> {
+  const deadline = Date.now() + 90_000
+  while (Date.now() < deadline) {
+    if (signal?.aborted) throw new DOMException('Поиск отменён', 'AbortError')
+    const search = await api.search(id)
+    if (search.status !== 'RUNNING') return search
+    await new Promise<void>((resolve, reject) => {
+      const timer = window.setTimeout(resolve, 1_000)
+      signal?.addEventListener('abort', () => {
+        window.clearTimeout(timer)
+        reject(new DOMException('Поиск отменён', 'AbortError'))
+      }, { once: true })
+    })
+  }
+  throw new Error('Поиск выполняется дольше 90 секунд. Попробуйте открыть его позже.')
+}
+
+export async function downloadSearchExport(id: number, format: 'xlsx' | 'docx' = 'xlsx') {
+  const response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`)
+  if (!response.ok) throw new ApiError(`Не удалось выгрузить отчёт (${response.status})`, response.status)
+  const blob = await response.blob()
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = `media-monitoring-${id}.${format}`
+  document.body.append(anchor)
+  anchor.click()
+  anchor.remove()
+  URL.revokeObjectURL(url)
 }

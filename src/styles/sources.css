@@ -1,0 +1,78 @@
+﻿/* Sources screen вЂ” mirrors design/РСЃС‚РѕС‡РЅРёРєРё_РІР°СЂРёР°РЅС‚.png. */
+body:has(.sources-shell) .topbar{display:none}
+body:has(.sources-shell) .page-content{max-width:none;min-height:100vh;padding:10px;background:linear-gradient(135deg,#f4f8fc,#edf4f8)}
+.sources-shell{min-height:calc(100vh - 20px);overflow:hidden;border:1px solid #dfe8f1;border-radius:13px;background:#fff;box-shadow:0 5px 22px #18304b0b}
+.sources-page-head{padding:21px 28px 18px;border-bottom:1px solid #e8edf3}
+.sources-page-head h1{margin:0;color:#0d2342;font:800 24px 'Manrope',sans-serif;letter-spacing:-.6px}
+.sources-page-head p{margin:6px 0 0;color:#8290a5;font-size:11px}
+.sources-toolbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:10px 20px 0}
+.sources-toolbar .tabs{align-self:stretch;gap:18px}
+.sources-toolbar .tabs button{padding:13px 2px 12px;color:#34445c;font-size:10px;font-weight:600}
+.sources-toolbar .tabs button.tab-active{border-bottom-color:#e52543;color:#142844}
+.sources-toolbar .tabs button span{background:#edf1f6;color:#66758a}
+.sources-toolbar .tabs button.tab-active span{background:#edf1f6;color:#66758a}
+.sources-tools{display:flex;align-items:center;gap:10px}
+.sources-tools .table-search{width:210px;height:36px;border-color:#dce4ed;border-radius:5px}
+.sources-tools .button-primary{min-height:36px;border-radius:5px;padding:0 15px;font-size:10px}
+.sources-table-wrap{margin:0 20px 22px;overflow:visible;border:1px solid #e2e9f0;border-radius:7px}
+.sources-table{table-layout:auto}
+.sources-table thead{background:#f4f7fa}
+.sources-table th{height:38px;color:#617087;font-size:9px;text-transform:none;letter-spacing:0}
+.sources-table th:first-child,.sources-table td:first-child{width:38px;padding-left:13px;padding-right:7px}
+.sources-table th:last-child,.sources-table td:last-child{width:120px;text-align:center}
+.sources-table td{height:53px;border-top:1px solid #e9eef3;color:#405068;font-size:10px}
+.sources-table tbody tr:hover{background:#fbfcfe}
+.sources-table .source-cell{gap:10px}
+.sources-table .source-avatar{width:31px;height:31px;border:2px solid #e4eaf1;border-radius:50%;font-size:10px;box-shadow:inset 0 0 0 2px #ffffff38}
+.sources-table .source-cell b{font-size:10px;font-weight:600}
+.source-platform{display:inline-grid;place-items:center;width:21px;height:21px;border-radius:4px;font-size:8px;font-weight:800}
+.sources-table .status-pill{padding:5px 8px;background:#dcf7e8;color:#23965e;font-size:8px}
+.sources-table .status-off{background:#eef1f4;color:#7f8a99}
+.source-actions{position:relative;display:flex;align-items:center;justify-content:center;gap:18px}
+.source-actions .switch{width:34px;height:18px;padding:2px}
+.source-actions .switch i{width:14px;height:14px}
+.source-actions .switch-on i{transform:translateX(16px)}
+.source-actions details{position:relative}
+.source-actions summary{display:grid;place-items:center;width:27px;height:27px;border-radius:5px;color:#304057;list-style:none;cursor:pointer}
+.source-actions summary::-webkit-details-marker{display:none}
+.source-actions summary:hover{background:#eef2f6}
+.source-actions details>div{position:absolute;z-index:8;top:31px;right:0;width:115px;border:1px solid #e1e7ed;border-radius:7px;background:#fff;padding:5px;box-shadow:0 10px 25px #17294220;text-align:left}
+.source-actions details button{display:block;width:100%;border:0;border-radius:4px;background:none;padding:7px 8px;color:#425168;text-align:left;font-size:9px}
+.source-actions details button:hover{background:#f2f5f8}
+.source-actions details button.danger-action{color:#dc2943}
+@media(max-width:950px){.sources-toolbar{align-items:stretch;flex-direction:column;gap:0}.sources-tools{padding:10px 0}.sources-tools .table-search{flex:1;width:auto}.sources-table-wrap{overflow-x:auto}.sources-table{min-width:780px}}
+@media(max-width:600px){body:has(.sources-shell) .page-content{padding:7px}.sources-shell{min-height:calc(100vh - 14px)}.sources-page-head{padding:18px 16px 15px}.sources-page-head h1{font-size:22px}.sources-toolbar{padding:7px 12px 0}.sources-toolbar .tabs{width:100%;overflow-x:auto}.sources-toolbar .tabs button{white-space:nowrap}.sources-tools{align-items:stretch;flex-direction:column}.sources-tools .button-primary{width:100%}.sources-table-wrap{margin:0 12px 15px}}
+
+/* Shared sidebar details from the supplied screens. */
+.brand-card{align-items:flex-start;margin-bottom:22px;padding-top:2px}
+.brand-card b{line-height:1.25}
+.brand-card span{font-size:8px}
+.brand-flame{position:relative;width:29px;height:44px;margin-right:2px}
+.brand-flame i{position:absolute;display:block;background:#fb1f45;transform:rotate(45deg)}
+.brand-flame i:nth-child(1){top:1px;left:8px;width:14px;height:14px;border-radius:9px 9px 2px 9px}
+.brand-flame i:nth-child(2){top:15px;left:5px;width:18px;height:18px;border-radius:10px 2px 10px 2px}
+.brand-flame i:nth-child(3){top:29px;left:9px;width:13px;height:13px;border-radius:2px 8px 2px 8px}
+.sidebar-nav{gap:3px}
+.sidebar-user{display:none}
+.help-card{margin-bottom:0}
+.sources-table tbody tr:nth-child(1) .source-avatar{background:repeating-linear-gradient(90deg,#244d91 0 2px,#acc4e3 2px 4px)!important}
+.sources-table tbody tr:nth-child(2) .source-avatar{background:radial-gradient(circle at 50% 50%,#a43b3d 0 15%,transparent 16%),repeating-radial-gradient(circle,#1d293c 0 2px,#718097 3px 4px)!important}
+.sources-table tbody tr:nth-child(3) .source-avatar{background:radial-gradient(circle,#fff 0 28%,transparent 30%),#d92331!important;color:#d92331}
+.sources-table tbody tr:nth-child(4) .source-avatar{background:radial-gradient(circle at 50% 35%,#192b27 0 25%,transparent 26%),#b49a16!important}
+.sources-table tbody tr:nth-child(5) .source-avatar{background:linear-gradient(90deg,#8a7162 0 25%,#443831 25% 50%,#9d897d 50% 75%,#55463f 75%)!important}
+.sources-table tbody tr:nth-child(6) .source-avatar{background:repeating-linear-gradient(90deg,#251e62 0 3px,#655ba2 3px 5px)!important}
+
+/* Clearer platform tabs on the Sources page. */
+.sources-toolbar .source-tabs{display:flex;align-items:flex-end;gap:4px;min-width:0}
+.sources-toolbar .source-tabs button{position:relative;display:flex;align-items:center;gap:6px;height:45px;margin-bottom:-1px;border:0;border-bottom:2px solid transparent;border-radius:7px 7px 0 0;background:transparent;padding:0 9px;color:#66748a;transition:color .16s,background .16s,border-color .16s}
+.sources-toolbar .source-tabs button b{font-size:10px;font-weight:600;white-space:nowrap}
+.sources-toolbar .source-tabs button:hover{background:#f7f9fc;color:#243650}
+.sources-toolbar .source-tabs button:focus-visible{z-index:1;outline:2px solid #f39aaa;outline-offset:-2px}
+.sources-toolbar .source-tabs button.tab-active{border-bottom-color:#ed2445;background:linear-gradient(180deg,transparent,#fff5f7);color:#172a46}
+.sources-toolbar .source-tabs button.tab-active:after{position:absolute;right:9px;bottom:-2px;left:9px;height:2px;border-radius:2px;background:#ed2445;content:''}
+.sources-toolbar .source-tabs button>span{display:grid;min-width:18px;height:18px;place-items:center;border-radius:9px;background:#eef2f6;padding:0 5px;color:#69788e;font-size:8px;font-weight:700}
+.sources-toolbar .source-tabs button.tab-active>span{background:#ffe8ed;color:#d91e3e}
+.source-tab-icon{display:grid;width:18px;height:18px;flex:none;place-items:center;border-radius:4px;color:#fff;font-size:6px;font-style:normal;font-weight:800;line-height:1}
+.source-tab-vk{background:#2787f5}.source-tab-ok{background:#f7931e}.source-tab-max{background:#5b27f5}
+@media(max-width:700px){.sources-toolbar .source-tabs{justify-content:flex-start;overflow-x:auto;scrollbar-width:none}.sources-toolbar .source-tabs::-webkit-scrollbar{display:none}.sources-toolbar .source-tabs button{flex:none;padding-right:8px;padding-left:8px}.sources-toolbar .source-tabs button b{font-size:9px}}
+

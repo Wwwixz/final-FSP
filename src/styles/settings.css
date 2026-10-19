@@ -1,0 +1,35 @@
+﻿/* Settings screen вЂ” mirrors design/РќР°СЃС‚СЂРѕР№РєРё.png. */
+body:has(.settings-shell) .topbar{display:none}
+body:has(.settings-shell) .page-content{max-width:none;min-height:100vh;padding:10px;background:linear-gradient(135deg,#f4f8fc,#edf4f8)}
+.settings-shell{min-height:calc(100vh - 20px);overflow:hidden;border:1px solid #e6edf4;border-radius:13px;background:#fff;box-shadow:0 5px 22px #18304b0a}
+.settings-page-head{padding:19px 24px 8px}
+.settings-page-head h1{margin:0;color:#0d2342;font:800 24px 'Manrope',sans-serif;letter-spacing:-.65px}
+.settings-page-head p{margin:4px 0 0;color:#8c9aaf;font-size:11px}
+.settings-shell .settings-tabs{gap:29px;padding:0 24px;border-bottom:1px solid #e8edf3}
+.settings-shell .settings-tabs button{padding:13px 2px 12px;color:#536178;font-size:10px;font-weight:600}
+.settings-shell .settings-tabs button.settings-tab-active{border-bottom-color:#e52443;color:#142844}
+.settings-shell .settings-body{max-width:none;min-height:0;padding:0 24px}
+.settings-form{max-width:900px}
+.settings-row{position:relative;display:grid;grid-template-columns:170px minmax(260px,440px);column-gap:16px;padding:20px 0;border-bottom:1px solid #edf1f5}
+.settings-row:last-child{border-bottom:0}
+.settings-row>strong{padding-top:3px;color:#172a46;font-size:11px;font-weight:700}
+.settings-select{display:flex;align-items:center;width:100%;height:38px;border:1px solid #dce3ec;border-radius:7px;background:#fff;padding-left:12px;color:#55647a}
+.settings-select svg{flex:none}
+.settings-select select{width:100%;height:100%;border:0;background:transparent;padding:0 12px;color:#34445a;font-size:10px;outline:0}
+.settings-region-row>p{grid-column:2;margin:7px 0 0;color:#9aa6b7;font-size:9px}
+.settings-option{min-width:0}
+.settings-option>.toggle-row{align-items:flex-start;justify-content:flex-start;gap:10px}
+.settings-option>.toggle-row>div{order:2;padding-top:1px}
+.settings-option>.toggle-row>.switch{order:1;margin-top:0}
+.settings-option .toggle-row b{color:#58667a;font-size:10px;font-weight:500}
+.settings-option .toggle-row span{max-width:390px;margin-top:6px;color:#98a4b4;font-size:9px;line-height:1.45}
+.settings-notifications{display:grid;gap:13px}
+.settings-notifications>.toggle-row{padding:0;border:0}
+.settings-fields{display:grid;grid-template-columns:1fr 1fr;gap:15px}
+.settings-fields>label{display:grid;gap:7px;color:#657287;font-size:10px;font-weight:600}
+.settings-fields select{height:38px;border:1px solid #dce3ec;border-radius:7px;background:#fff;padding:0 10px;color:#405067;font-size:10px}
+.settings-fields>.toggle-row{grid-column:1/-1;margin-top:6px}
+.settings-shell .settings-footer{justify-content:flex-start;border-top:1px solid #edf1f5;padding:17px 24px}
+.settings-shell .settings-footer .button-primary{min-height:38px;padding:0 18px;border-radius:5px;background:#e52042;box-shadow:0 4px 10px #e5204228;font-size:10px}
+@media(max-width:700px){body:has(.settings-shell) .page-content{padding:7px}.settings-shell{min-height:calc(100vh - 14px)}.settings-page-head{padding:18px 16px 7px}.settings-shell .settings-tabs{gap:20px;padding:0 16px;overflow-x:auto}.settings-shell .settings-body{padding:0 16px}.settings-row{grid-template-columns:1fr;gap:12px;padding:17px 0}.settings-row>strong{padding:0}.settings-region-row>p{grid-column:1}.settings-fields{grid-template-columns:1fr}.settings-shell .settings-footer{padding:15px 16px}.settings-shell .settings-footer .button-primary{width:auto}}
+

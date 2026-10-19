@@ -1,0 +1,159 @@
+﻿/* Results workspace: Midnight Indigo / Deep Ocean treatment from the reference. */
+.app-shell:has(.results-page) .main-area{
+  background-color:#123344;
+}
+.app-shell:has(.results-page) .main-area:before{
+  position:fixed;
+  z-index:0;
+  inset:72px 36% 0 0;
+  content:'';
+  pointer-events:none;
+  background:linear-gradient(115deg,rgba(18,51,68,.72),rgba(37,43,70,.3));
+}
+.app-shell:has(.results-page) .page-content{
+  position:relative;
+  z-index:1;
+}
+.results-page{
+  color:#dce6f4;
+}
+.results-page .results-search-panel,
+.results-page .design-card,
+.results-page .results-summary-bar,
+.results-page .results-empty-state{
+  border-color:#44556f;
+  background:linear-gradient(135deg,rgba(37,43,70,.97),rgba(18,51,68,.94));
+  box-shadow:0 18px 42px rgba(4,14,27,.35);
+  backdrop-filter:blur(14px);
+}
+.results-page .results-search-copy h1,
+.results-page .design-card-heading h2,
+.results-page .results-empty-state h2,
+.results-page .result-title{
+  color:#f3f7fc;
+}
+.results-page .results-search-copy p,
+.results-page .design-card-heading p,
+.results-page .result-copy>p,
+.results-page .result-metadata,
+.results-page .result-engagement,
+.results-page .results-pagination{
+  color:#aebed1;
+}
+.results-page .results-query-field,
+.results-page .results-search-filters label>div,
+.results-page .summary-filter,
+.results-page .summary-edit,
+.results-page .sort-control select,
+.results-page .results-search-filters fieldset button,
+.results-page .results-pagination button{
+  border-color:#3d6170;
+  background:rgba(18,51,68,.9);
+  color:#c9d6e6;
+}
+.results-page .results-query-field input,
+.results-page .results-search-filters input,
+.results-page .results-search-filters select,
+.results-page .sort-control select{
+  color:#e6edf8;
+}
+.results-page .results-query-field input::placeholder{
+  color:#8fa2ba;
+}
+.results-page .results-search-examples,
+.results-page .results-search-filters label,
+.results-page .sort-control{
+  color:#91a5bd;
+}
+.results-page .results-search-examples button,
+.results-page .results-platform-summary,
+.results-page .result-topic,
+.results-page .match-label{
+  background:#123344;
+  color:#bfd0e1;
+}
+.results-page .match-direct{
+  background:rgba(229,29,59,.18);
+  color:#ff7b91;
+}
+.results-page .results-search-filters,
+.results-page .design-card-heading,
+.results-page .result-row,
+.results-page .results-pagination{
+  border-color:#31465d;
+}
+.results-page .results-search-filters fieldset button.selected{
+  border-color:#55768b;
+  background:#252b46;
+  color:#f3f7fc;
+}
+.results-page .summary-edit:hover,
+.results-page .results-pagination button:hover{
+  border-color:#697c95;
+  background:#2f3757;
+}
+.results-page .results-pagination .pagination-current{
+  border-color:#ef4963;
+  background:#e51d3b;
+  color:#fff;
+}
+.results-page .results-empty-state>span{
+  background:#123344;
+}
+@media(max-width:760px){
+  .app-shell:has(.results-page) .main-area:before{inset:64px 0 0}
+}
+
+/* Light theme navigation keeps the reference palette at the top. */
+html[data-theme='light'] .app-sidebar{
+  border-bottom-color:#3b4c63;
+  background:linear-gradient(112deg,#252b46 0%,#123344 100%);
+  box-shadow:0 5px 22px rgba(18,51,68,.24);
+}
+
+/* Full dark appearance follows the selected photo mode. */
+html[data-theme='dark'] body{background:#123344;color:#e6edf8;color-scheme:dark}
+html[data-theme='dark'] .app-shell{background:#123344}
+html[data-theme='dark'] .main-area{background-color:#123344}
+html[data-theme='dark'] .topbar{border-bottom-color:#47516d;background:#252b46ed}
+html[data-theme='dark'] .breadcrumbs{color:#a3b1c5}
+html[data-theme='dark'] .icon-button{border-color:#263954;background:#142640;color:#c0cede}
+html[data-theme='dark'] .page-content{color:#dce6f4}
+html[data-theme='dark'] .app-shell:has(.results-page) .page-content,html[data-theme='dark'] .app-shell:has(.publication-page) .page-content{background:transparent}
+html[data-theme='dark'] .page-content:not(.page-content--flush),html[data-theme='dark'] body:has(.sources-shell) .page-content,html[data-theme='dark'] body:has(.saved-shell) .page-content,html[data-theme='dark'] body:has(.settings-shell) .page-content{background:linear-gradient(135deg,#252b46,#123344)}
+html[data-theme='dark'] .app-shell:has(.results-page) .page-content,html[data-theme='dark'] .app-shell:has(.publication-page) .page-content{background:transparent}
+html[data-theme='dark'] .design-page,html[data-theme='dark'] .repository-sources,html[data-theme='dark'] .saved-shell,html[data-theme='dark'] .settings-shell{color:#dce6f4}
+html[data-theme='dark'] .panel,html[data-theme='dark'] .design-card,html[data-theme='dark'] .results-summary-bar,html[data-theme='dark'] .results-search-panel,html[data-theme='dark'] .results-empty-state,html[data-theme='dark'] .publication-card,html[data-theme='dark'] .publication-info,html[data-theme='dark'] .analytics-stat,html[data-theme='dark'] .analytics-date,html[data-theme='dark'] .analytics-footer button,html[data-theme='dark'] .saved-table-wrap,html[data-theme='dark'] .sources-table-wrap,html[data-theme='dark'] .settings-shell,html[data-theme='dark'] .sources-shell,html[data-theme='dark'] .saved-shell{border-color:#49536f;background:#252b46e8;box-shadow:0 12px 32px #08141f73;backdrop-filter:blur(12px)}
+html[data-theme='dark'] .design-page-heading h1,html[data-theme='dark'] .repository-source-heading h1,html[data-theme='dark'] .saved-page-head h1,html[data-theme='dark'] .settings-page-head h1,html[data-theme='dark'] .results-search-copy h1,html[data-theme='dark'] .design-card-heading h2,html[data-theme='dark'] .results-header h2,html[data-theme='dark'] .publication-content h1,html[data-theme='dark'] .publication-info h2{color:#f0f5fb}
+html[data-theme='dark'] .design-page-heading p,html[data-theme='dark'] .repository-source-heading p,html[data-theme='dark'] .saved-page-head p,html[data-theme='dark'] .settings-page-head p,html[data-theme='dark'] .results-search-copy p,html[data-theme='dark'] .design-card-heading p,html[data-theme='dark'] .results-header p{color:#9aabc0}
+html[data-theme='dark'] .results-summary-bar,html[data-theme='dark'] .results-search-panel{background:#252b46e8}
+html[data-theme='dark'] .summary-filter,html[data-theme='dark'] .summary-edit,html[data-theme='dark'] .sort-control select,html[data-theme='dark'] .results-query-field,html[data-theme='dark'] .results-search-filters label>div,html[data-theme='dark'] .results-search-filters fieldset button,html[data-theme='dark'] .analytics-date{border-color:#3d6170;background:#123344e8;color:#c5d4e7}
+html[data-theme='dark'] .results-query-field input,html[data-theme='dark'] .results-search-filters input,html[data-theme='dark'] .results-search-filters select,html[data-theme='dark'] .sort-control select,html[data-theme='dark'] .analytics-date select{color:#dce6f4}
+html[data-theme='dark'] .results-query-field input::placeholder,html[data-theme='dark'] .results-search-examples,html[data-theme='dark'] .results-search-examples button,html[data-theme='dark'] .sort-control,html[data-theme='dark'] .results-search-filters label{color:#8fa2ba}
+html[data-theme='dark'] .results-search-examples button,html[data-theme='dark'] .results-platform-summary,html[data-theme='dark'] .result-topic,html[data-theme='dark'] .match-label,html[data-theme='dark'] .results-pagination button{background:#123344;color:#b9c8dc}
+html[data-theme='dark'] .result-row,html[data-theme='dark'] .results-header,html[data-theme='dark'] .results-pagination,html[data-theme='dark'] .design-card-heading,html[data-theme='dark'] .topic-divider,html[data-theme='dark'] .chart-footnote{border-color:#233750}
+html[data-theme='dark'] .result-title,html[data-theme='dark'] .result-copy>p,html[data-theme='dark'] .result-metadata,html[data-theme='dark'] .result-engagement,html[data-theme='dark'] .results-pagination,html[data-theme='dark'] .publication-content p,html[data-theme='dark'] .publication-actions,html[data-theme='dark'] .publication-info dd{color:#b9c8dc}
+html[data-theme='dark'] .analytics-stat>span,html[data-theme='dark'] .analytics-stat>div small,html[data-theme='dark'] .analytics-demo-note,html[data-theme='dark'] .chart-y-labels,html[data-theme='dark'] .chart-x-labels,html[data-theme='dark'] .chart-footnote,html[data-theme='dark'] .donut-legend span,html[data-theme='dark'] .analytics-topics>div,html[data-theme='dark'] .analytics-footer{color:#9aabc0}
+html[data-theme='dark'] .analytics-stat>div,html[data-theme='dark'] .topics-card h3{color:#f0f5fb}
+html[data-theme='dark'] .chart-grid line,html[data-theme='dark'] .settings-tabs,html[data-theme='dark'] .settings-footer,html[data-theme='dark'] .publication-actions,html[data-theme='dark'] .publication-info dl div{border-color:#233750}
+html[data-theme='dark'] .settings-tabs button,html[data-theme='dark'] .settings-row>strong,html[data-theme='dark'] .settings-option .toggle-row b,html[data-theme='dark'] .settings-fields>label,html[data-theme='dark'] .settings-select,html[data-theme='dark'] .settings-select select,html[data-theme='dark'] .settings-fields select{color:#c9d5e5}
+html[data-theme='dark'] .settings-select,html[data-theme='dark'] .settings-fields select,html[data-theme='dark'] .settings-option select{border-color:#3d6170;background:#123344}
+html[data-theme='dark'] .settings-tabs button.settings-tab-active{color:#fff}
+html[data-theme='dark'] .sources-table thead,html[data-theme='dark'] .saved-queries-table thead{background:#123344}
+html[data-theme='dark'] .sources-table td,html[data-theme='dark'] .saved-queries-table td,html[data-theme='dark'] .sources-table th,html[data-theme='dark'] .saved-queries-table th{border-color:#263b55;color:#b9c8dc}
+html[data-theme='dark'] .sources-table tbody tr:hover,html[data-theme='dark'] .saved-queries-table tbody tr:hover{background:#123344b8}
+html[data-theme='dark'] .repository-source-list-head,html[data-theme='dark'] .repository-source-row{border-color:#263b55}
+html[data-theme='dark'] .repository-source-list-head h2,html[data-theme='dark'] .repository-source-copy>button,html[data-theme='dark'] .saved-query-name{color:#e6eef8}
+html[data-theme='dark'] .repository-source-list-head p,html[data-theme='dark'] .repository-source-copy a,html[data-theme='dark'] .repository-followers,html[data-theme='dark'] .repository-source-note{color:#91a4ba}
+html[data-theme='dark'] .repository-source-note{background:#123344}
+html[data-theme='dark'] .saved-query-text,html[data-theme='dark'] .period-cell{color:#a7b7cb}
+html[data-theme='dark'] .saved-actions>div,html[data-theme='dark'] .source-actions details>div,html[data-theme='dark'] .source-modal{border-color:#49536f;background:#252b46;color:#dce6f4}
+html[data-theme='dark'] .saved-actions button,html[data-theme='dark'] .source-actions details button{color:#c1cee0}
+html[data-theme='dark'] .modal-backdrop{background:#020a16b8}
+html[data-theme='dark'] .auth-card{border:1px solid #49536f;background:#252b46;color:#e6edf8}
+html[data-theme='dark'] .auth-card h1,html[data-theme='dark'] .auth-field{color:#f0f5fb}
+html[data-theme='dark'] .auth-subtitle,html[data-theme='dark'] .auth-alt{color:#aebed1}
+html[data-theme='dark'] .auth-input{border-color:#3d6170;background:#123344;color:#aebed1}
+html[data-theme='dark'] .auth-input input{color:#e6edf8}
+html[data-theme='dark'] .auth-screen:before{background:linear-gradient(180deg,#07142666 0%,#07142677 100%)}
+
