@@ -1,0 +1,818 @@
+openapi: 3.1.0
+info:
+  title: Медиамониторинг соцсетей Красноярского края
+  version: 1.0.0
+  description: |
+    Проект API по tz_final.pdf. Один пользовательский режим, без регистрации.
+    Поиск публичных публикаций VK, Одноклассников и MAX по смыслу запроса.
+    Базовый URL локального прототипа /api/v1. Все даты-время — RFC 3339.
+    Список источников и задания сохраняются сервером. Это контракт, не реализация.
+    Поиск асинхронный: POST /searches, опрос GET /searches/{searchId},
+    чтение снимка результатов, создание XLSX из этого же снимка.
+    Ошибки внешних источников отражаются в задании и не являются HTTP-ошибкой чтения задания.
+servers:
+  - url: http://localhost:8000/api/v1
+    description: Локальный прототип
+security: []
+tags:
+  - name: Capabilities
+    description: Доступные площадки и ограничения
+  - name: Sources
+    description: Пользовательский список групп, сообществ и каналов
+  - name: Searches
+    description: Поисковые задания и результаты
+  - name: Exports
+    description: Выгрузка неизменяемого снимка в XLSX
+paths:
+  /capabilities:
+    get:
+      tags: [Capabilities]
+      operationId: getCapabilities
+      summary: Получить возможности установленного прототипа
+      responses:
+        '200':
+          description: Возможности и текущая готовность коннекторов
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Capabilities'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sources:
+    get:
+      tags: [Sources]
+      operationId: listSources
+      summary: Получить сохранённые источники
+      parameters:
+        - name: platform
+          in: query
+          schema:
+            $ref: '#/components/schemas/Platform'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Список в порядке created_at, id; курсор фиксирует снимок списка
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, next_cursor]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Source'
+                  next_cursor:
+                    $ref: '#/components/schemas/NullableCursor'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+    post:
+      tags: [Sources]
+      operationId: createSource
+      summary: Добавить источник в пользовательский список
+      description: |
+        URL должен вести на группу, сообщество или канал выбранной площадки.
+        Сервер нормализует URL и проверяет дубликаты по platform + platform_source_id,
+        а до разрешения идентификатора — по каноническому URL. Сетевой сбой при
+        проверке не препятствует сохранению: availability=unknown или unavailable.
+        Разрешены только публичные HTTPS URL поддерживаемых площадок;
+        внутренние адреса и перенаправления за пределы разрешённых площадок запрещены.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceInput'
+      responses:
+        '201':
+          description: Источник сохранён
+          headers:
+            Location:
+              schema: {type: string}
+              description: /api/v1/sources/{sourceId}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /sources/{sourceId}:
+    parameters:
+      - $ref: '#/components/parameters/SourceId'
+    get:
+      tags: [Sources]
+      operationId: getSource
+      summary: Получить источник
+      responses:
+        '200':
+          description: Источник
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Sources]
+      operationId: replaceSource
+      summary: Изменить источник
+      description: |
+        Полная замена редактируемых полей. Проверки URL и уникальности как при создании.
+        Не изменяет снимки источника в ранее созданных поисках.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SourceInput'
+      responses:
+        '200':
+          description: Источник обновлён
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Source'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Sources]
+      operationId: deleteSource
+      summary: Удалить источник из пользовательского списка
+      description: Поиски, снимки источника, найденные публикации и выгрузки сохраняются.
+      responses:
+        '204':
+          description: Источник удалён
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /searches:
+    post:
+      tags: [Searches]
+      operationId: createSearch
+      summary: Запустить поиск
+      description: |
+        Создаёт отдельное задание с неизменяемыми параметрами и копиями выбранных
+        источников. Результаты разных заданий никогда не смешиваются.
+        Пробельный запрос, from > to, неизвестные source_ids или несовпадение
+        площадки источника с platforms дают 422. Недоступность коннектора
+        отражается в coverage задания; другие площадки продолжают поиск.
+        В selected_sources проверяются только выбранные источники.
+        В broad список пользователя не ограничивает поиск; период и регион сохраняются.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchInput'
+            examples:
+              topic:
+                summary: Тема, широкий поиск
+                value:
+                  query: Безопасность дорожного движения в Красноярском крае
+                  period: {from: '2026-09-01', to: '2026-09-30', timezone: Asia/Krasnoyarsk}
+                  platforms: [vk, ok, max]
+                  scope: {mode: broad}
+                  region: {code: RU-KYA, match_by: source_or_content}
+                  unknown_date_policy: include_marked
+              news:
+                summary: Текст новости, выбранные источники; ID условный
+                value:
+                  query: В Красноярске 15 сентября открыли новый корпус школы на улице Примерной. Здание рассчитано на 500 учеников.
+                  period: {from: '2026-09-15', to: '2026-09-20', timezone: Asia/Krasnoyarsk}
+                  platforms: [vk]
+                  scope:
+                    mode: selected_sources
+                    source_ids: ['10000000-0000-4000-8000-000000000001']
+                  region: {code: RU-KYA, match_by: source_or_content}
+                  unknown_date_policy: exclude
+      responses:
+        '202':
+          description: Задание принято; при повторе ключа возвращается то же задание в текущем состоянии
+          headers:
+            Location:
+              schema: {type: string}
+              description: /api/v1/searches/{searchId}
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+              description: Рекомендуемый интервал опроса в секундах
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Search'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /searches/{searchId}:
+    parameters:
+      - $ref: '#/components/parameters/SearchId'
+    get:
+      tags: [Searches]
+      operationId: getSearch
+      summary: Получить состояние, параметры и количество результатов
+      description: |
+        completed + result_count=0 означает «ничего не найдено» в обработанной области.
+        partial/failed с нулём результатов означает неполную проверку или сбой,
+        а не подтверждённое отсутствие публикаций. queued/running — поиск ещё идёт.
+        При любом сбое уже сохранённые результаты остаются доступны.
+      responses:
+        '200':
+          description: Текущее состояние задания
+          headers:
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+              description: Присутствует для queued/running
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Search'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+  /searches/{searchId}/coverage:
+    parameters:
+      - $ref: '#/components/parameters/SearchId'
+    get:
+      tags: [Searches]
+      operationId: getSearchCoverage
+      summary: Узнать, какие площадки и источники проверены
+      description: |
+        В selected_sources присутствует запись для каждого выбранного источника.
+        В broad присутствуют записи о поиске по каждой площадке и об обнаруженных
+        источниках. completed означает завершение заявленной операции, а не
+        исчерпывающую проверку всей соцсети. Ограничения перечислены в limitations.
+        Первая страница фиксирует снимок покрытия; курсоры продолжают этот снимок.
+      parameters:
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Покрытие и ошибки отдельных ресурсов
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [search_id, captured_at, items, next_cursor]
+                properties:
+                  search_id: {type: string, format: uuid}
+                  captured_at: {type: string, format: date-time}
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CoverageItem'
+                  next_cursor:
+                    $ref: '#/components/schemas/NullableCursor'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /searches/{searchId}/results:
+    parameters:
+      - $ref: '#/components/parameters/SearchId'
+    get:
+      tags: [Searches]
+      operationId: listSearchResults
+      summary: Получить снимок подборки, включая промежуточную
+      description: |
+        Без snapshot_id и cursor фиксируется новый неизменяемый снимок текущих
+        результатов, параметров, состояния и покрытия задания. Снимок доступен
+        всё время хранения задания; автоматическое удаление в v1 не предусмотрено.
+        Для последующих страниц передаётся cursor; он включает search_id,
+        snapshot_id, позицию и limit. Другой limit или snapshot_id с ним даёт 422.
+        Сортировка: published_at по убыванию, неизвестные даты в конце, затем id.
+        total — число отдельных размещений во всём снимке, не размер страницы.
+        Снимок не меняется при поступлении новых результатов и используется для XLSX.
+      parameters:
+        - name: snapshot_id
+          in: query
+          schema: {type: string, format: uuid}
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/Cursor'
+      responses:
+        '200':
+          description: Страница неизменяемой подборки; пустой items допустим и во время поиска
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultPage'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+  /searches/{searchId}/exports:
+    parameters:
+      - $ref: '#/components/parameters/SearchId'
+    post:
+      tags: [Exports]
+      operationId: createExport
+      summary: Подготовить XLSX по показанному снимку
+      description: |
+        Выгружаются все страницы снимка, включая пустую или частичную подборку.
+        Лист «Публикации»: номер, площадка, источник, заголовок/начало поста,
+        дата или «недоступна», подтверждение периода, выдержка, прямая гиперссылка.
+        Лист «Поиск»: запрос, период и часовой пояс, регион, режим, площадки,
+        выбранные источники, количество, snapshot_id, время снимка, состояние,
+        ошибки и ограничения покрытия на момент снимка. Для partial/failed/running
+        явно указывается, что подборка неполная. Текст ячеек не исполняется как формулы.
+      parameters:
+        - $ref: '#/components/parameters/IdempotencyKey'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [snapshot_id]
+              properties:
+                snapshot_id: {type: string, format: uuid}
+      responses:
+        '202':
+          description: Экспорт принят; повтор ключа возвращает тот же экспорт
+          headers:
+            Location:
+              schema: {type: string}
+              description: /api/v1/exports/{exportId}
+            Retry-After:
+              schema: {type: integer, minimum: 1}
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+        '429':
+          $ref: '#/components/responses/RateLimited'
+        '503':
+          $ref: '#/components/responses/Unavailable'
+  /exports/{exportId}:
+    parameters:
+      - $ref: '#/components/parameters/ExportId'
+    get:
+      tags: [Exports]
+      operationId: getExport
+      summary: Получить состояние подготовки XLSX
+      responses:
+        '200':
+          description: Состояние экспорта
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Export'
+        '404':
+          $ref: '#/components/responses/NotFound'
+  /exports/{exportId}/file:
+    parameters:
+      - $ref: '#/components/parameters/ExportId'
+    get:
+      tags: [Exports]
+      operationId: downloadExport
+      summary: Скачать готовый файл XLSX
+      responses:
+        '200':
+          description: Файл с подборкой и параметрами поиска
+          headers:
+            Content-Disposition:
+              required: true
+              schema: {type: string}
+              example: attachment; filename="publications.xlsx"
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema: {type: string, format: binary}
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          description: Экспорт ещё не готов или завершился ошибкой; code=export_not_ready или export_failed
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+components:
+  parameters:
+    SourceId:
+      name: sourceId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    SearchId:
+      name: searchId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    ExportId:
+      name: exportId
+      in: path
+      required: true
+      schema: {type: string, format: uuid}
+    Limit:
+      name: limit
+      in: query
+      description: По умолчанию 50 на первой странице; с cursor наследуется из курсора
+      schema: {type: integer, minimum: 1, maximum: 100}
+    Cursor:
+      name: cursor
+      in: query
+      description: Непрозрачный курсор; неверный курсор или изменение фильтров дают 422
+      schema: {type: string, minLength: 1, maxLength: 4096}
+    IdempotencyKey:
+      name: Idempotency-Key
+      in: header
+      required: true
+      description: |
+        UUID клиентской операции. Один ключ + метод + путь + нормализованное тело
+        всегда возвращают тот же ресурс; другое тело с тем же ключом даёт 409.
+        Ключ хранится столько же, сколько ресурс. Новый осознанный поиск или повтор
+        после ошибки использует новый ключ. Повтор сетевого запроса — прежний.
+      schema: {type: string, format: uuid}
+  responses:
+    NotFound:
+      description: Ресурс не найден или снимок не принадлежит этому поиску
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Conflict:
+      description: Дубликат источника или повтор Idempotency-Key с другим телом
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    ValidationError:
+      description: Некорректные параметры, тело, URL, курсор или их сочетание
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    InternalError:
+      description: Внутренняя ошибка API; уже сохранённые данные не удаляются
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    RateLimited:
+      description: Превышен лимит запуска задач
+      headers:
+        Retry-After:
+          required: true
+          schema: {type: integer, minimum: 1}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+    Unavailable:
+      description: Сервер не может принять задачу; это не ошибка отдельной соцсети
+      headers:
+        Retry-After:
+          schema: {type: integer, minimum: 1}
+      content:
+        application/problem+json:
+          schema: {$ref: '#/components/schemas/Problem'}
+  schemas:
+    Platform:
+      type: string
+      enum: [vk, ok, max]
+    NullableCursor:
+      type: [string, 'null']
+      description: null означает последнюю страницу
+    Capabilities:
+      type: object
+      required: [platforms, region_codes, region_rules, export_formats]
+      properties:
+        platforms:
+          type: array
+          minItems: 3
+          maxItems: 3
+          description: Ровно по одной записи для vk, ok, max
+          items:
+            type: object
+            required: [platform, modes, availability, limitations]
+            properties:
+              platform: {$ref: '#/components/schemas/Platform'}
+              modes:
+                type: array
+                uniqueItems: true
+                items: {type: string, enum: [selected_sources, broad]}
+              availability: {type: string, enum: [available, degraded, unavailable]}
+              limitations:
+                type: array
+                items: {type: string}
+        region_codes:
+          type: array
+          items: {type: string, const: RU-KYA}
+        region_rules:
+          type: string
+          description: Понятное объяснение определения связи с регионом
+        export_formats:
+          type: array
+          items: {type: string, const: xlsx}
+    SourceInput:
+      type: object
+      additionalProperties: false
+      required: [name, platform, url, region_code]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 200}
+        platform: {$ref: '#/components/schemas/Platform'}
+        url: {type: string, format: uri, pattern: '^https://', maxLength: 2048}
+        region_code:
+          type: [string, 'null']
+          enum: [RU-KYA, null]
+          description: Указанная пользователем принадлежность источника региону; null — неизвестна
+    Source:
+      type: object
+      required: [id, name, platform, url, region_code, platform_source_id, availability, checked_at, created_at, updated_at]
+      properties:
+        id: {type: string, format: uuid}
+        name: {type: string, minLength: 1, maxLength: 200}
+        platform: {$ref: '#/components/schemas/Platform'}
+        url: {type: string, format: uri}
+        region_code: {type: [string, 'null'], enum: [RU-KYA, null]}
+        platform_source_id: {type: [string, 'null']}
+        availability: {type: string, enum: [unknown, available, unavailable]}
+        checked_at: {type: [string, 'null'], format: date-time}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    SourceSnapshot:
+      type: object
+      required: [id, platform_source_id, name, platform, url, region_code]
+      description: Копия источника на момент поиска; обнаруженный источник не добавляется автоматически в список пользователя
+      properties:
+        id:
+          type: [string, 'null']
+          format: uuid
+          description: ID в пользовательском списке или null для обнаруженного источника
+        platform_source_id: {type: [string, 'null']}
+        name: {type: string}
+        platform: {$ref: '#/components/schemas/Platform'}
+        url: {type: string, format: uri}
+        region_code: {type: [string, 'null'], enum: [RU-KYA, null]}
+    Period:
+      type: object
+      additionalProperties: false
+      required: [from, to, timezone]
+      description: |
+        Обе календарные даты включены, from <= to. Фильтр применяется к дате
+        публикации в Asia/Krasnoyarsk, не к дате получения. Интервал реализации:
+        [from 00:00:00, следующий день после to 00:00:00) в указанном часовом поясе.
+      properties:
+        from: {type: string, format: date}
+        to: {type: string, format: date}
+        timezone: {type: string, const: Asia/Krasnoyarsk}
+    Scope:
+      oneOf:
+        - type: object
+          additionalProperties: false
+          required: [mode, source_ids]
+          properties:
+            mode: {type: string, const: selected_sources}
+            source_ids:
+              type: array
+              minItems: 1
+              maxItems: 500
+              uniqueItems: true
+              items: {type: string, format: uuid}
+        - type: object
+          additionalProperties: false
+          required: [mode]
+          properties:
+            mode: {type: string, const: broad}
+    SearchInput:
+      type: object
+      additionalProperties: false
+      required: [query, period, platforms, scope, region, unknown_date_policy]
+      properties:
+        query:
+          type: string
+          minLength: 3
+          maxLength: 20000
+          description: Единое поле — тема, событие, человек с уточнениями или исходная новость; пробелы по краям удаляются
+        period: {$ref: '#/components/schemas/Period'}
+        platforms:
+          type: array
+          minItems: 1
+          maxItems: 3
+          uniqueItems: true
+          items: {$ref: '#/components/schemas/Platform'}
+        scope: {$ref: '#/components/schemas/Scope'}
+        region:
+          type: object
+          additionalProperties: false
+          required: [code, match_by]
+          properties:
+            code: {type: string, const: RU-KYA}
+            match_by:
+              type: string
+              const: source_or_content
+              description: Принадлежность источника региону или подтверждённая связь содержания с регионом
+        unknown_date_policy:
+          type: string
+          enum: [include_marked, exclude]
+          description: Включать с period_match=unknown либо исключать материалы с неизвестной датой
+    SearchStatus:
+      type: string
+      enum: [queued, running, completed, partial, failed]
+      description: |
+        queued — ожидает; running — выполняется; completed — заявленная область
+        обработана без ошибок; partial — часть области не обработана из-за ошибок,
+        лимитов или прерывания, но есть успешно обработанные операции либо результаты;
+        failed — поиск не дал ни успешно обработанных операций, ни результатов.
+        completed, partial, failed — конечные состояния. Ограничения broad сохраняются
+        даже при completed: полнота всей соцсети не гарантируется.
+    Search:
+      type: object
+      required: [id, input, selected_sources, status, result_count, unknown_date_count, progress, limitations, error, created_at, started_at, finished_at]
+      properties:
+        id: {type: string, format: uuid}
+        input: {$ref: '#/components/schemas/SearchInput'}
+        selected_sources:
+          type: array
+          description: Снимки выбранных источников; пустой массив для broad
+          items: {$ref: '#/components/schemas/SourceSnapshot'}
+        status: {$ref: '#/components/schemas/SearchStatus'}
+        result_count: {type: integer, minimum: 0, description: Число уникальных размещений на данный момент}
+        unknown_date_count: {type: integer, minimum: 0, description: Подмножество result_count с неизвестной датой}
+        progress:
+          type: object
+          required: [scheduled, completed, failed, skipped]
+          description: |
+            Числа операций покрытия, соответствующих CoverageItem; в broad scheduled
+            может расти. completed + failed + skipped <= scheduled. Это не процент
+            полноты соцсети. В конечном состоянии сумма равна scheduled.
+          properties:
+            scheduled: {type: integer, minimum: 0}
+            completed: {type: integer, minimum: 0}
+            failed: {type: integer, minimum: 0}
+            skipped: {type: integer, minimum: 0}
+        limitations:
+          type: array
+          items: {type: string}
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/TaskError'
+            - type: 'null'
+          description: Общий сбой задания; ошибки конкретных ресурсов находятся в coverage
+        created_at: {type: string, format: date-time}
+        started_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+    TaskError:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+          enum: [source_unavailable, access_denied, rate_limited, timeout, connector_not_configured, unsupported_mode, upstream_error, limit_reached, internal_error, export_failed]
+        message: {type: string, description: Понятное пользователю описание без секретов и трассировок}
+        retryable: {type: boolean}
+        retry_after_seconds: {type: integer, minimum: 1}
+    CoverageItem:
+      type: object
+      required: [id, platform, kind, source, status, candidates_checked, results_found, limitations, error, started_at, finished_at]
+      properties:
+        id: {type: string, format: uuid}
+        platform: {$ref: '#/components/schemas/Platform'}
+        kind: {type: string, enum: [platform_discovery, source]}
+        source:
+          anyOf:
+            - $ref: '#/components/schemas/SourceSnapshot'
+            - type: 'null'
+          description: null только для platform_discovery
+        status: {type: string, enum: [queued, running, completed, failed, skipped]}
+        candidates_checked: {type: integer, minimum: 0}
+        results_found:
+          type: integer
+          minimum: 0
+          description: Найдено в этой операции; операции могут пересекаться, сумма не равна result_count
+        limitations:
+          type: array
+          items: {type: string}
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/TaskError'
+            - type: 'null'
+          description: Обязательно ненулевое для failed/skipped; null для остальных статусов
+        started_at: {type: [string, 'null'], format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+    Publication:
+      type: object
+      required: [id, placement_key, platform_post_id, source, title, title_origin, published_at, period_match, excerpt, url, retrieved_at, relevance, region_evidence]
+      allOf:
+        - if:
+            properties:
+              published_at: {type: 'null'}
+          then:
+            properties:
+              period_match: {const: unknown}
+          else:
+            properties:
+              period_match: {const: within}
+      description: |
+        Одно реально полученное размещение. Уникальность внутри задания по
+        platform + platform_source_id + platform_post_id; при отсутствии ID —
+        по нормализованной прямой ссылке. URL-алиасы разрешаются до дедупликации.
+        Одинаковый текст в разных размещениях остаётся отдельными записями.
+        title и excerpt копируются из материала; модель не генерирует ссылки и цитаты.
+      properties:
+        id: {type: string, format: uuid}
+        placement_key: {type: string, description: Стабильный непрозрачный ключ размещения, не хеш текста}
+        platform_post_id: {type: [string, 'null']}
+        source: {$ref: '#/components/schemas/SourceSnapshot'}
+        title: {type: string, minLength: 1, description: Исходный заголовок либо начало текста поста}
+        title_origin: {type: string, enum: [original, post_start]}
+        published_at:
+          oneOf:
+            - {type: string, format: date-time}
+            - {type: string, format: date}
+            - {type: 'null'}
+          description: |
+            RFC 3339 при известном времени; YYYY-MM-DD при известной только дате
+            в часовом поясе поиска. Точность не повышается вымышленным временем.
+            Если известную дату нельзя соотнести с часовым поясом поиска,
+            значение null; интерфейс отображает «недоступна».
+        period_match:
+          type: string
+          enum: [within, unknown]
+          description: within только при подтверждённой дате в периоде; unknown при published_at=null
+        excerpt: {type: string, minLength: 1, description: Короткая дословная выдержка из полученного текста}
+        url: {type: string, format: uri, pattern: '^https://', description: Прямая ссылка на полученную публикацию}
+        retrieved_at: {type: string, format: date-time, description: Время успешного получения текста по ссылке}
+        relevance:
+          type: object
+          required: [reason]
+          properties:
+            reason: {type: string, description: Краткое объяснение связи с запросом, отдельно от исходной выдержки}
+        region_evidence:
+          type: object
+          required: [basis, explanation]
+          properties:
+            basis: {type: string, enum: [source, content, both]}
+            explanation: {type: string}
+    ResultPage:
+      type: object
+      required: [search_id, snapshot_id, captured_at, search_status, total, unknown_date_count, items, next_cursor]
+      properties:
+        search_id: {type: string, format: uuid}
+        snapshot_id: {type: string, format: uuid}
+        captured_at: {type: string, format: date-time}
+        search_status: {$ref: '#/components/schemas/SearchStatus'}
+        total: {type: integer, minimum: 0}
+        unknown_date_count: {type: integer, minimum: 0}
+        items:
+          type: array
+          items: {$ref: '#/components/schemas/Publication'}
+        next_cursor: {$ref: '#/components/schemas/NullableCursor'}
+    Export:
+      type: object
+      required: [id, search_id, snapshot_id, format, status, row_count, created_at, finished_at, download_url, error]
+      properties:
+        id: {type: string, format: uuid}
+        search_id: {type: string, format: uuid}
+        snapshot_id: {type: string, format: uuid}
+        format: {type: string, const: xlsx}
+        status: {type: string, enum: [queued, running, completed, failed]}
+        row_count: {type: integer, minimum: 0, description: Равно total снимка; без строк заголовков и листа параметров}
+        created_at: {type: string, format: date-time}
+        finished_at: {type: [string, 'null'], format: date-time}
+        download_url:
+          type: [string, 'null']
+          format: uri-reference
+          description: /api/v1/exports/{exportId}/file при completed, иначе null; файл хранится вместе с заданием
+        error:
+          anyOf:
+            - $ref: '#/components/schemas/TaskError'
+            - type: 'null'
+          description: Ненулевое только при failed
+    Problem:
+      type: object
+      required: [type, title, status, detail, code, request_id]
+      properties:
+        type: {type: string, format: uri-reference, default: 'about:blank'}
+        title: {type: string}
+        status: {type: integer, minimum: 400, maximum: 599}
+        detail: {type: string}
+        code:
+          type: string
+          examples: [validation_error, not_found, duplicate_source, idempotency_conflict, invalid_cursor, export_not_ready, export_failed, rate_limited, service_unavailable, internal_error]
+        request_id: {type: string, description: Идентификатор для диагностики}
+        errors:
+          type: array
+          items:
+            type: object
+            required: [field, message]
+            properties:
+              field: {type: string, description: JSON Pointer в теле либо имя query/header/path параметра}
+              message: {type: string}

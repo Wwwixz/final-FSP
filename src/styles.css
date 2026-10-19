@@ -1,0 +1,24 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+
+:root { font-family: 'DM Sans', sans-serif; font-synthesis: none; text-rendering: optimizeLegibility; -webkit-font-smoothing: antialiased; }
+* { box-sizing: border-box; }
+body { margin: 0; min-width: 360px; }
+button, input, select { font: inherit; }
+button { cursor: pointer; }
+.font-display { font-family: 'Manrope', sans-serif; }
+.panel { border: 1px solid #e8ece7; border-radius: 14px; background: white; box-shadow: 0 2px 8px rgb(35 51 39 / 2%); }
+.nav-link { display:flex; align-items:center; gap:10px; width:100%; border-radius:9px; padding:10px 12px; text-align:left; color:#7d8880; font-size:11px; font-weight:500; transition:background .15s,color .15s; }
+.nav-link:hover { background:#f5f7f4; color:#46584a; }
+.nav-active { background:#edf3ee; color:#375c40; font-weight:700; }
+.platform-dot { width:7px; height:7px; border-radius:50%; }
+.platform-vk { background:#6686d1; }.platform-ok { background:#e39a50; }.platform-max { background:#8e72d0; }
+.stat-card { border:1px solid #e8ece7; border-radius:13px; background:white; padding:15px 16px; }
+.stat-label { color:#849087; font-size:10px; font-weight:600; }
+.stat-icon { display:grid; width:30px; height:30px; place-items:center; border-radius:9px; }
+.date-input { width:calc(50% - 12px); min-width:0; border:1px solid #e7ebe7; border-radius:6px; background:#fff; padding:7px 6px; color:#68746b; font-size:9px; outline:none; }
+.date-input:focus,.form-input:focus { border-color:#9eb5a1; box-shadow:0 0 0 3px #edf4ed; }
+.page-button { display:grid; width:26px; height:26px; place-items:center; border:1px solid #e8ece8; border-radius:7px; background:white; color:#879289; }
+.page-current { border-color:#d8e4d9; background:#edf4ed; color:#507456; font-size:10px; font-weight:700; }
+.form-input { width:100%; border:1px solid #e4e9e4; border-radius:8px; background:#fcfdfb; padding:10px 11px; color:#4d5b50; font-size:11px; outline:none; }
+@media (max-width: 640px) { body { min-width:320px; } }
