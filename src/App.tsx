@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
+<<<<<<< HEAD
 import { ArrowLeft, ArrowRight, BarChart3, Bookmark, CalendarDays, Check, ChevronLeft, ChevronRight, CircleAlert, Download, ExternalLink, Heart, MapPin, Newspaper, Plus, Search, Settings, Share2, Users, X } from 'lucide-react'
 import { api } from './api'
 import type { AiStatus, PageResponse, Platform, PlatformDto, PublicationDto, PublicationSort, SearchDetail, SearchMode, SearchSummary, SearchType, SourceDto, SourceInput } from './api'
@@ -10,6 +11,20 @@ const statusNames: Record<SearchDetail['status'], string> = { RUNNING: 'Идёт
 const searchTypes: Record<SearchType, string> = { TOPIC: 'Тема', EVENT: 'Событие', PERSON: 'Человек', NEWS_TEXT: 'Текст новости' }
 const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение', 'развитие спорта']
 const emptyPage: PageResponse<PublicationDto> = { content: [], page: 0, size: 20, totalElements: 0, totalPages: 0, last: true }
+=======
+import {
+  ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bell,
+  Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
+  CircleHelp, Download, ExternalLink, Eye, EyeOff, Heart, Lock, Mail, MapPin, MessageCircle,
+  MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Star, TrendingUp, User, Users, X,
+} from 'lucide-react'
+
+type Page = 'login' | 'register' | 'search' | 'results' | 'publication' | 'sources' | 'saved' | 'analytics' | 'settings'
+type Platform = 'VK' | 'OK' | 'MAX'
+type Source = { id: number; name: string; platform: Platform; url: string; followers: string; region: string; active: boolean; color: string }
+type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean }
+type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; image: string }
+>>>>>>> 6c93104 (feat + refact: Добавлен вход и регистрация, теперь есть лейдинг и убран поиск из панели)
 
 function formatDate(value: string | null | undefined) {
   if (!value) return 'Недоступна'
@@ -108,6 +123,7 @@ function App() {
     } catch (error) { setDataError(message(error)) }
     finally { setBusy(false) }
   }
+<<<<<<< HEAD
 
   async function openHistory(id: number) {
     setBusy(true); setDataError(''); setResultsError(''); setPublicationPage(emptyPage)
@@ -150,19 +166,42 @@ function App() {
     if (!window.confirm('Удалить поиск и все его результаты?')) return
     try { await api.deleteSearch(id); await refreshHistory(); if (search?.id === id) { setSearch(null); setPage('history') } }
     catch (error) { setDataError(message(error)) }
+=======
+  const toggleSource = (id: number) => setSources(current => current.map(item => item.id === id ? { ...item, active: !item.active } : item))
+  const removeSaved = (id: number) => setSaved(current => current.filter(item => item.id !== id))
+  const exportResults = async () => {
+    const XLSX = await import('xlsx')
+    const rows = repositoryResults.map((item, index) => ({ '№': index + 1, 'Площадка': item.platform, 'Источник': item.source, 'Заголовок': item.title, 'Дата': item.date, 'Ссылка': item.url }))
+    const book = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Публикации')
+    XLSX.writeFile(book, 'krasnopars-results.xlsx')
+>>>>>>> 6c93104 (feat + refact: Добавлен вход и регистрация, теперь есть лейдинг и убран поиск из панели)
   }
 
-  return <div className="app-shell">
+  if (page === 'login' || page === 'register') return <AuthScreen mode={page} onSwitch={mode => setPage(mode)} onDone={() => setPage('results')}/>
+  return <div className={`app-shell ${page === 'search' ? 'landing-shell' : ''}`}>
     <aside className="app-sidebar">
+<<<<<<< HEAD
       <div className="brand-card"><div className="brand-mark brand-flame" aria-hidden="true"><i/><i/><i/></div><div><b>МЕДИАМОНИТОРИНГ<br/>СОЦСЕТЕЙ</b><span>Красноярский край</span></div></div>
       <nav className="sidebar-nav">
         <NavItem active={page === 'search'} icon={<Search size={18}/>} onClick={() => setPage('search')}>Поиск публикаций</NavItem>
         <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage(search ? 'results' : 'history')}>Результаты</NavItem>
+=======
+      <div className="brand-card"><div className="brand-mark brand-flame" aria-hidden="true"><i/><i/><i/></div><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
+      {page !== 'search' && <nav className="sidebar-nav">
+        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Результаты</NavItem>
+>>>>>>> 6c93104 (feat + refact: Добавлен вход и регистрация, теперь есть лейдинг и убран поиск из панели)
         <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
         <NavItem active={page === 'history'} icon={<Bookmark size={18}/>} onClick={() => setPage('history')}>История поиска</NavItem>
         <NavItem active={page === 'analytics'} icon={<BarChart3 size={18}/>} onClick={() => setPage('analytics')}>Аналитика</NavItem>
         <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
+<<<<<<< HEAD
       </nav>
+=======
+      </nav>}
+      {page === 'search' ? <div className="landing-auth-actions"><button type="button" className="landing-login" onClick={() => setPage('login')}>Войти</button><button type="button" className="landing-register" onClick={() => setPage('register')}>Регистрация</button></div> : <div className="nav-user-actions"><button className="nav-bell" aria-label="Уведомления"><Bell size={18}/><i/></button><div className="nav-profile"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={14}/></div></div>}
+      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={15}/></div></div>
+>>>>>>> 6c93104 (feat + refact: Добавлен вход и регистрация, теперь есть лейдинг и убран поиск из панели)
     </aside>
     <main className="main-area"><div className={`page-content ${page === 'search' ? 'page-content--flush' : ''}`}>
       {notice && <div className="notice"><Check size={16}/>{notice}<button onClick={() => setNotice('')} aria-label="Закрыть"><X size={15}/></button></div>}
@@ -177,6 +216,90 @@ function App() {
     </div></main>
     {sourceDialog && <SourceDialog source={sourceDialog === 'new' ? null : sourceDialog} busy={busy} error={dataError} onClose={() => setSourceDialog(null)} onSave={saveSource}/>}
   </div>
+}
+
+function AuthScreen({ mode, onSwitch, onDone }: { mode: 'login' | 'register'; onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+  return <div className={`auth-screen auth-screen--${mode}`}>
+    <div className="auth-logo"><span className="auth-flame" aria-hidden="true"><i/><i/><i/></span><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
+    {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
+  </div>
+}
+
+function AuthPasswordInput({ value, onChange, placeholder }: { value: string; onChange: (value: string) => void; placeholder: string }) {
+  const [show, setShow] = useState(false)
+  return <span className="auth-input">
+    <Lock size={18}/>
+    <input type={show ? 'text' : 'password'} value={value} onChange={event => onChange(event.target.value)} placeholder={placeholder} required/>
+    <button type="button" className="auth-eye" onClick={() => setShow(!show)} aria-label={show ? 'Скрыть пароль' : 'Показать пароль'}>{show ? <Eye size={18}/> : <EyeOff size={18}/>}</button>
+  </span>
+}
+
+function AuthCheck({ checked, onChange, label, variant }: { checked: boolean; onChange: () => void; label: string; variant: 'solid' | 'outline' }) {
+  return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} className={`auth-check auth-check-${variant} ${checked ? 'auth-check-on' : ''}`} onClick={onChange}><Check size={14} strokeWidth={3.2}/></button>
+}
+
+function AuthLoginForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [remember, setRemember] = useState(true)
+  const [error, setError] = useState('')
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (!email.trim() || !password) { setError('Введите электронную почту и пароль'); return }
+    setError('')
+    onDone()
+  }
+  return <form className="auth-card" onSubmit={submit}>
+    <h1>Вход в систему</h1>
+    <p className="auth-subtitle">Войдите, чтобы начать работу в системе «КрасноПарс»</p>
+    <label className="auth-field">Электронная почта
+      <span className="auth-input"><Mail size={18}/><input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="example@krsk.ru" required/></span>
+    </label>
+    <label className="auth-field">Пароль
+      <AuthPasswordInput value={password} onChange={setPassword} placeholder="Введите пароль"/>
+    </label>
+    <div className="auth-row"><AuthCheck checked={remember} onChange={() => setRemember(!remember)} label="Запомнить меня" variant="solid"/><span>Запомнить меня</span></div>
+    {error && <p className="auth-error">{error}</p>}
+    <button className="auth-submit">Войти</button>
+    <p className="auth-alt">Нет аккаунта? <button type="button" onClick={() => onSwitch('register')}>Зарегистрироваться</button></p>
+  </form>
+}
+
+function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+  const [name, setName] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [confirm, setConfirm] = useState('')
+  const [agree, setAgree] = useState(false)
+  const [error, setError] = useState('')
+  const submit = (event: FormEvent) => {
+    event.preventDefault()
+    if (password.length < 6) { setError('Пароль должен содержать не менее 6 символов'); return }
+    if (password !== confirm) { setError('Пароли не совпадают'); return }
+    if (!agree) { setError('Согласитесь с политикой обработки персональных данных'); return }
+    setError('')
+    onDone()
+  }
+  return <form className="auth-card" onSubmit={submit}>
+    <h1>Регистрация</h1>
+    <p className="auth-subtitle">Создайте аккаунт для работы в системе «КрасноПарс»</p>
+    <label className="auth-field">ФИО
+      <span className="auth-input"><User size={18}/><input value={name} onChange={event => setName(event.target.value)} placeholder="Иванов Иван Иванович" required/></span>
+    </label>
+    <label className="auth-field">Электронная почта
+      <span className="auth-input"><Mail size={18}/><input type="email" value={email} onChange={event => setEmail(event.target.value)} placeholder="example@krsk.ru" required/></span>
+    </label>
+    <label className="auth-field">Пароль
+      <AuthPasswordInput value={password} onChange={setPassword} placeholder="Придумайте пароль"/>
+    </label>
+    <label className="auth-field">Подтверждение пароля
+      <AuthPasswordInput value={confirm} onChange={setConfirm} placeholder="Повторите пароль"/>
+    </label>
+    <div className="auth-row auth-row--top"><AuthCheck checked={agree} onChange={() => setAgree(!agree)} label="Согласие с политикой обработки персональных данных" variant="outline"/><span>Я согласен с <button type="button" className="auth-policy">политикой обработки персональных данных</button></span></div>
+    {error && <p className="auth-error">{error}</p>}
+    <button className="auth-submit">Зарегистрироваться</button>
+    <p className="auth-alt">Уже есть аккаунт? <button type="button" onClick={() => onSwitch('login')}>Войти</button></p>
+  </form>
 }
 
 function NavItem({ active, icon, onClick, children }: { active: boolean; icon: ReactNode; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} className={`nav-link ${active ? 'nav-active' : ''}`}>{icon}<span>{children}</span></button> }
@@ -223,8 +346,47 @@ function ResultsPage({ search, publicationPage, resultPage, sort, loadingResults
   </div>
 }
 
+<<<<<<< HEAD
 function PublicationPage({ item, onBack }: { item: PublicationDto; onBack: () => void }) {
   return <div className="publication-page"><button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button><div className="publication-layout"><article className="publication-card"><header className="publication-header"><div className="publication-source-avatar">{item.sourceName.slice(0, 1)}</div><div><strong>{item.sourceName}</strong><span>{item.hasDate ? formatDate(item.publishedAt) : 'Дата недоступна'}</span></div><span className={`publication-platform ${item.platform.toLowerCase()}`}>{platformNames[item.platform]}</span></header><div className="publication-content"><h1>{titleOf(item)}</h1><p>{item.excerpt || 'Выдержка недоступна'}</p>{item.aiComment && <div className="ai-comment"><b>Оценка ИИ</b><p>{item.aiComment}</p></div>}</div><footer className="publication-actions">{item.likes != null && <span><Heart size={16}/>{item.likes}</span>}{item.reposts != null && <span><Share2 size={16}/>{item.reposts}</span>}{item.views != null && <span>Просмотры: {item.views}</span>}{directUrl(item.url) && <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>}</footer></article><aside className="publication-info"><h2>О публикации</h2><dl><div><dt>Источник</dt><dd>{item.sourceName}</dd></div><div><dt>Площадка</dt><dd>{platformNames[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.hasDate ? formatDate(item.publishedAt) : 'Недоступна'}</dd></div>{item.relevance != null && <div><dt>Релевантность</dt><dd>{Math.round(item.relevance * 100)}%</dd></div>}{item.aiRelevance != null && <div><dt>Оценка ИИ</dt><dd>{Math.round(item.aiRelevance * 100)}%</dd></div>}</dl></aside></div></div>
+=======
+function PublicationPage({ item, onBack }: { item: Publication; onBack: () => void }) {
+  const [liked, setLiked] = useState(false)
+  const likes = [1200, 980, 756, 540, 432][item.id - 1] ?? 0
+  const comments = [86, 42, 31, 28, 19][item.id - 1] ?? 0
+  const shares = [124, 67, 54, 21, 16][item.id - 1] ?? 0
+
+  return <div className="publication-page">
+    <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+    <div className="publication-layout">
+      <article className="publication-card">
+        <header className="publication-header">
+          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{item.source.slice(0, 1)}</div>
+          <div><strong>{item.source}</strong><span>{item.date}</span></div>
+          <span className={`publication-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span>
+        </header>
+        <img className="publication-cover" src={item.image} alt={item.title}/>
+        <div className="publication-content">
+          <span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span>
+          <h1>{item.title}</h1>
+          <p>{item.excerpt.replace(/…$/, '.')}</p>
+          <p>Материал найден системой «КрасноПарс» по выбранной теме. В публикации рассказывается о событии, его участниках и значении для жителей Красноярского края.</p>
+          <div className="publication-tags"><span>#Красноярск</span><span>#ледовыйдворец</span><span>#спорт</span></div>
+        </div>
+        <footer className="publication-actions">
+          <button type="button" className={liked ? 'liked' : ''} onClick={() => setLiked(!liked)}><Heart size={16} fill={liked ? 'currentColor' : 'none'}/>{likes + (liked ? 1 : 0)}</button>
+          <span><MessageCircle size={16}/>{comments}</span><span><Share2 size={16}/>{shares}</span>
+          <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
+        </footer>
+      </article>
+      <aside className="publication-info">
+        <h2>О публикации</h2>
+        <dl><div><dt>Источник</dt><dd>{item.source}</dd></div><div><dt>Площадка</dt><dd>{platformLabel[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.date}</dd></div><div><dt>Соответствие запросу</dt><dd>{item.kind}</dd></div></dl>
+        <button type="button"><Bookmark size={15}/>Сохранить публикацию</button>
+      </aside>
+    </div>
+  </div>
+>>>>>>> 6c93104 (feat + refact: Добавлен вход и регистрация, теперь есть лейдинг и убран поиск из панели)
 }
 
 function SourcesPage({ sources, selectedIds, setSelectedIds, onAdd, onEdit, onToggle, onDelete }: { sources: SourceDto[]; selectedIds: number[]; setSelectedIds: (value: number[] | ((current: number[]) => number[])) => void; onAdd: () => void; onEdit: (source: SourceDto) => void; onToggle: (source: SourceDto) => void; onDelete: (source: SourceDto) => void }) {
