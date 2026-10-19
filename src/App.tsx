@@ -39,6 +39,12 @@ const formatDateInput = (date: Date) => {
 
 const todayInputValue = () => formatDateInput(new Date())
 const openDatePicker = (input: HTMLInputElement) => input.showPicker?.()
+const defaultPeriodStartValue = () => '2026-10-19'
+const defaultPeriodEndValue = () => '2026-11-19'
+const formatCompactDate = (value: string) => {
+  const [year, month, day] = value.split('-')
+  return year && month && day ? `${day}\\${month}\\${year.slice(-2)}` : 'дд\\мм\\гг'
+}
 const monthAgoInputValue = () => {
   const date = new Date()
   date.setDate(date.getDate() - 30)
@@ -104,8 +110,8 @@ function App() {
   const [page, setPage] = useState<Page>('results')
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
-  const [periodStart, setPeriodStart] = useState(monthAgoInputValue)
-  const [periodEnd, setPeriodEnd] = useState(todayInputValue)
+  const [periodStart, setPeriodStart] = useState(defaultPeriodStartValue)
+  const [periodEnd, setPeriodEnd] = useState(defaultPeriodEndValue)
   const [region, setRegion] = useState('Красноярский край')
   const [regions, setRegions] = useState(['Красноярский край', 'Красноярск', 'Ачинск', 'Норильск'])
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
@@ -125,6 +131,7 @@ function App() {
   const [sourceEdit, setSourceEdit] = useState<number | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode)
   const [cityBackground, setCityBackground] = useState<CityBackground>(() => getCityBackground(themeMode))
 
@@ -308,6 +315,9 @@ function App() {
 
   if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={() => setPage('results')}/>
   return <div className="app-shell" data-city-background={cityBackground}>
+    <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
+    </video>
     <aside className="app-sidebar">
       <div className="brand-card"><img className="brand-emblem" src="/favicon.png" alt=""/><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
       <nav className="sidebar-nav">
@@ -317,7 +327,7 @@ function App() {
         <NavItem active={page === 'analytics'} icon={<BarChart3 size={18}/>} onClick={() => setPage('analytics')}>Аналитика</NavItem>
         <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
       </nav>
-      <div className="nav-user-actions"><button className="nav-bell" aria-label="Уведомления"><Bell size={18}/><i/></button><div className="nav-profile"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={14}/></div></div>
+      <div className="nav-user-actions"><button className="nav-bell" aria-label="Уведомления"><Bell size={18}/><i/></button><div className="profile-menu-wrap"><div className="nav-profile" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setProfileMenuOpen(open => !open) }}><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={14}/></div>{profileMenuOpen && <div className="profile-menu"><button type="button" onClick={() => { setProfileMenuOpen(false); setPage('login') }}>Выйти</button></div>}</div></div>
       <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={15}/></div></div>
     </aside>
     <main className="main-area">
@@ -355,6 +365,9 @@ function App() {
 
 function AuthScreen({ mode, cityBackground, onSwitch, onDone }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
   return <div className={`auth-screen auth-screen--${mode}`} data-city-background={cityBackground}>
+    <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
+    </video>
     <div className="auth-logo"><span className="auth-flame" aria-hidden="true"><i/><i/><i/></span><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
     {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
   </div>
@@ -442,22 +455,38 @@ function NavItem({ active, icon, onClick, children }: { active: boolean; icon: R
 function PlatformBadge({ platform, size = 44 }: { platform: Platform; size?: number }) {
   if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size, fontSize: Math.round(size * 0.3) }}>VK</span>
   if (platform === 'OK') return <span className="pl-badge pl-ok" style={{ width: size, height: size }}>
-    <svg width={Math.round(size * 0.56)} height={Math.round(size * 0.56)} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="6.7" r="3.1" fill="#fff"/>
-      <path d="M6.6 12.9c1.6 1.6 3.4 2.4 5.4 2.4s3.8-.8 5.4-2.4" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
-      <path d="M9 15.6c-.7 1.9-1.9 3.5-3.6 4.9M15 15.6c.7 1.9 1.9 3.5 3.6 4.9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
+    <svg width={Math.round(size * 0.68)} height={Math.round(size * 0.68)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="32" cy="18" r="8" fill="#fff"/>
+      <path d="M17 34.5c4.4 4.3 9.4 6.4 15 6.4s10.6-2.1 15-6.4" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
+      <path d="M27.5 42.5 17 54M36.5 42.5 47 54" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
     </svg>
   </span>
   return <span className="pl-badge pl-max" style={{ width: size, height: size }}>
-    <svg width={Math.round(size * 0.58)} height={Math.round(size * 0.58)} viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M12 3.4a8.6 8.6 0 1 0 5 15.6l3.7 1-1-3.5a8.6 8.6 0 0 0-7.7-13.1Z" fill="#fff"/>
-      <circle cx="12" cy="12" r="2.9" fill="#6c3bf5"/>
+    <svg width={Math.round(size * 0.72)} height={Math.round(size * 0.72)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
+      <circle cx="33" cy="29" r="19" stroke="#fff" strokeWidth="10"/>
+      <path d="M20 43 13.5 54.5" stroke="#fff" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
     </svg>
   </span>
 }
 
 function Switch({ checked, onChange, blue, large, label }: { checked: boolean; onChange: () => void; blue?: boolean; large?: boolean; label: string }) {
   return <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`switch ${blue ? 'switch-blue' : ''} ${large ? 'switch-lg' : ''} ${checked ? 'switch-on' : ''}`} onClick={onChange}><i/></button>
+}
+
+function CompactDateInput({ value, min, max, onChange, label }: { value: string; min?: string; max?: string; onChange: (value: string) => void; label: string }) {
+  return <div className="compact-date-control">
+    <span className="compact-date-value" aria-hidden="true">{formatCompactDate(value)}</span>
+    <CalendarDays size={14} aria-hidden="true"/>
+    <input
+      type="date"
+      value={value}
+      min={min}
+      max={max}
+      aria-label={label}
+      onClick={event => openDatePicker(event.currentTarget)}
+      onChange={event => onChange(event.target.value)}
+    />
+  </div>
 }
 
 function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean }) {
@@ -473,10 +502,10 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
     </div>
     <div className="results-search-examples"><span>Например:</span>{exampleTopics.map(topic => <button type="button" key={topic} onClick={() => setQuery(topic)}>{topic}</button>)}</div>
     <div className="results-search-filters">
-      <label><span>Период с</span><div><CalendarDays size={14}/><input type="date" value={periodStart} max={periodEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)}/></div></label>
-      <label><span>по</span><div><CalendarDays size={14}/><input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)}/></div></label>
+      <label><span>Период с</span><CompactDateInput value={periodStart} max={periodEnd || undefined} label="Начало периода" onChange={setPeriodStart}/></label>
+      <label><span>по</span><CompactDateInput value={periodEnd} min={periodStart} label="Конец периода" onChange={setPeriodEnd}/></label>
       <label className="results-region"><span>Регион</span><div><MapPin size={14}/><select value={region} onChange={event => setRegion(event.target.value)}>{regions.map(item => <option key={item}>{item}</option>)}</select><ChevronDown size={13}/></div></label>
-      <fieldset><legend>Площадки</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} className={platforms.includes(item) ? 'selected' : ''} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={20}/>{item}</button>)}</fieldset>
+      <fieldset className="platform-filter"><legend>Площадки</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={platforms.includes(item) ? 'selected' : ''} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}</fieldset>
     </div>
   </form>
   return <div className="search-page">
@@ -495,9 +524,9 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
             <span className="filter-label">Период публикации</span>
             <div className="period-box">
               <CalendarDays size={17}/>
-              <input type="date" value={periodStart} max={periodEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
+              <input type="date" value={periodStart} max={periodEnd || undefined} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
               <span className="period-dash">—</span>
-              <input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
+              <input type="date" value={periodEnd} min={periodStart} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
               <ChevronDown size={15}/>
             </div>
           </div>

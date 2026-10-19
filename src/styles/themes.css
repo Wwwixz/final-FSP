@@ -325,5 +325,36 @@ html[data-theme='dark'] select option:hover{
   background-color:#2f6d9f;
   color:#fff;
 }
+html[data-theme='dark'] .auth-logo-text b{color:#f0f5fb}
+html[data-theme='dark'] .auth-logo-text span{color:#b8c7d9}
+html[data-theme='dark'] .auth-row{color:#e6edf8}
+html[data-theme='dark'] .auth-policy,
+html[data-theme='dark'] .auth-alt button{color:#8db9ff}
+html[data-theme='dark'] .auth-policy:hover,
+html[data-theme='dark'] .auth-alt button:hover{color:#b8d4ff}
+html[data-theme='dark'] .auth-input svg{color:#b6c7da}
+html[data-theme='dark'] .auth-input input::placeholder{color:#91a6bd}
+html[data-theme='dark'] .auth-eye{color:#a9bdd3}
+html[data-theme='dark'] .auth-check.auth-check-on.auth-check-outline{border-color:#ff7185;background:#252b46;color:#ff9aaa}
 .results-loading span svg{animation:api-search-pulse 1s ease-in-out infinite}
 @keyframes api-search-pulse{50%{transform:scale(1.15);opacity:.55}}
+
+/* Winter video is the background of the dark theme only. */
+.app-shell>.theme-background-video,
+.auth-screen>.theme-background-video{display:none}
+html[data-theme='dark'] .app-shell>.theme-background-video,
+html[data-theme='dark'] .auth-screen>.theme-background-video,
+html[data-theme='light'] .app-shell>.theme-background-video,
+html[data-theme='light'] .auth-screen>.theme-background-video{display:block}
+html[data-theme='dark'] .app-shell:has(.results-page)>.theme-background-video,
+html[data-theme='light'] .app-shell:has(.results-page)>.theme-background-video{display:block}
+html[data-theme='dark'] .app-shell:has(.results-page)>.main-area{background-image:none}
+html[data-theme='dark'] .app-shell>.main-area{background-color:rgba(7,20,38,.38)}
+html[data-theme='light'] .app-shell:has(.results-page)>.main-area{background-image:none}
+html[data-theme='light'] .app-shell>.main-area{background-color:rgba(225,236,244,.2)}
+@media(prefers-reduced-motion:reduce){
+  html[data-theme='dark'] .app-shell>.theme-background-video,
+  html[data-theme='dark'] .auth-screen>.theme-background-video,
+  html[data-theme='light'] .app-shell>.theme-background-video,
+  html[data-theme='light'] .auth-screen>.theme-background-video{display:none}
+}
