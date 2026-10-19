@@ -2,11 +2,10 @@ import { useMemo, useState } from 'react'
 import type { FormEvent } from 'react'
 import {
   Activity, ArrowDownRight, ArrowRight, ArrowUpRight, BarChart3, Check, ChevronDown,
-  ChevronLeft, ChevronRight, CircleAlert, Clock3, Download, ExternalLink, FileSpreadsheet,
+  ChevronRight, CircleAlert, Clock3, Download, ExternalLink,
   Filter, Globe2, LayoutDashboard, Link2, ListFilter, LoaderCircle, MapPin, Newspaper,
-  Plus, Radio, Search, Settings2, SlidersHorizontal, Sparkles, Trash2, Users, X,
+  Pencil, Plus, Radio, Search, Settings2, Sparkles, Trash2, Users, X,
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
 
 type Platform = 'VK' | 'OK' | 'MAX'
 type Source = { id: number; name: string; platform: Platform; url: string; followers: string; color: string; initials: string }
@@ -42,12 +41,13 @@ function App() {
   const [isSearching, setIsSearching] = useState(false)
   const [hasSearched, setHasSearched] = useState(true)
   const [sourceModal, setSourceModal] = useState(false)
+  const [editingSourceId, setEditingSourceId] = useState<number | null>(null)
   const [newSourceName, setNewSourceName] = useState('')
   const [newSourceUrl, setNewSourceUrl] = useState('')
   const [newSourcePlatform, setNewSourcePlatform] = useState<Platform>('VK')
   const [notice, setNotice] = useState('')
   const [filter, setFilter] = useState('Все публикации')
-  const [page, setPage] = useState(1)
+  const [sourcePicker, setSourcePicker] = useState(false)
 
   const visibleResults = useMemo(() => filter === 'Все публикации' ? results : results.filter(r => r.kind === filter), [filter, results])
   const togglePlatform = (p: Platform) => setPlatforms(current => current.includes(p) ? current.filter(x => x !== p) : [...current, p])
@@ -69,17 +69,45 @@ function App() {
     }, 1300)
   }
 
-  const exportXlsx = () => {
-    const rows = visibleResults.map((r, index) => ({
-      '№': index + 1, 'Площадка': r.platform, 'Источник': r.source, 'Заголовок': r.title,
-      'Дата публикации': r.date, 'Выдержка': r.excerpt, 'Ссылка': r.url,
-      'Запрос': query, 'Период': `${periodStart} — ${periodEnd}`,
-    }))
-    const book = XLSX.utils.book_new()
-    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ '№': '', 'Площадка': '', 'Источник': '', 'Заголовок': '', 'Дата публикации': '', 'Выдержка': '', 'Ссылка': '', 'Запрос': query, 'Период': `${periodStart} — ${periodEnd}` }])
-    XLSX.utils.book_append_sheet(book, sheet, 'Публикации')
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Запрос', query], ['Период', `${periodStart} — ${periodEnd}`], ['Регион', 'Красноярский край'], ['Режим', mode === 'broad' ? 'Широкий поиск' : 'По списку источников'], ['Публикаций', visibleResults.length], ['Демо-данные', 'Да — результаты примера, не живой поиск']]), 'Параметры поиска')
-    XLSX.writeFile(book, 'medi sled-podborka.xlsx'.replace(' ', ''))
+  const exportXlsx = async () => {
+    const { default: ExcelJS } = await import('exceljs')
+    const book = new ExcelJS.Workbook()
+    book.creator = 'Медиаслед'
+    book.created = new Date()
+    const sheet = book.addWorksheet('Публикации', { views: [{ state: 'frozen', ySplit: 1 }] })
+    sheet.columns = [
+      { header: '№', key: 'number', width: 7 }, { header: 'Площадка', key: 'platform', width: 16 },
+      { header: 'Источник', key: 'source', width: 28 }, { header: 'Заголовок', key: 'title', width: 54 },
+      { header: 'Дата публикации', key: 'date', width: 22 }, { header: 'Выдержка', key: 'excerpt', width: 66 },
+      { header: 'Ссылка', key: 'url', width: 48 },
+    ]
+    const header = sheet.getRow(1)
+    header.height = 26
+    header.eachCell(cell => { cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 }; cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF204B39' } }; cell.alignment = { vertical: 'middle' } })
+    visibleResults.forEach((result, index) => {
+      const row = sheet.addRow({ number: index + 1, platform: result.platform, source: result.source, title: result.title, date: result.date, excerpt: result.excerpt, url: '' })
+      row.height = 42
+      row.alignment = { vertical: 'top', wrapText: true }
+      const link = row.getCell('url')
+      link.value = { text: result.url, hyperlink: result.url, tooltip: 'Открыть публикацию' }
+      link.font = { color: { argb: 'FF426E52' }, underline: true }
+    })
+    const details = book.addWorksheet('Параметры поиска')
+    details.columns = [{ width: 23 }, { width: 90 }]
+    ;[
+      ['Запрос', query], ['Период публикации', `${periodStart} — ${periodEnd}`],
+      ['Регион', 'Красноярский край'], ['Режим поиска', mode === 'broad' ? 'Широкий поиск' : 'По выбранным источникам'],
+      ['Площадки', platforms.join(', ')], ['Количество публикаций', visibleResults.length],
+      ['Состояние данных', 'Демонстрационный набор; живой поиск не подключён'],
+    ].forEach((pair, index) => { const row = details.addRow(pair); row.getCell(1).font = { bold: true, color: { argb: 'FF526257' } }; row.getCell(2).alignment = { wrapText: true, vertical: 'top' }; if (index === 0) row.height = 32 })
+    const buffer = await book.xlsx.writeBuffer()
+    const blob = new Blob([buffer], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' })
+    const href = URL.createObjectURL(blob)
+    const anchor = document.createElement('a')
+    anchor.href = href
+    anchor.download = 'mediasled-podborka.xlsx'
+    anchor.click()
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000)
     setNotice('Таблица Excel скачана')
     window.setTimeout(() => setNotice(''), 2800)
   }
@@ -87,11 +115,15 @@ function App() {
   const addSource = (event: FormEvent) => {
     event.preventDefault()
     if (!newSourceName.trim() || !newSourceUrl.trim()) return
-    const source: Source = { id: Date.now(), name: newSourceName.trim(), platform: newSourcePlatform, url: newSourceUrl.trim().replace(/^https?:\/\//, ''), followers: '—', color: newSourcePlatform === 'VK' ? '#5278d9' : newSourcePlatform === 'OK' ? '#e98a35' : '#7358ce', initials: newSourceName.trim().slice(0, 1).toUpperCase() }
-    setSources(current => [...current, source])
-    setSelectedIds(current => [...current, source.id])
+    const source: Source = { id: editingSourceId ?? Date.now(), name: newSourceName.trim(), platform: newSourcePlatform, url: newSourceUrl.trim().replace(/^https?:\/\//, ''), followers: editingSourceId ? sources.find(item => item.id === editingSourceId)?.followers ?? '—' : '—', color: newSourcePlatform === 'VK' ? '#5278d9' : newSourcePlatform === 'OK' ? '#e98a35' : '#7358ce', initials: newSourceName.trim().slice(0, 1).toUpperCase() }
+    if (editingSourceId) setSources(current => current.map(item => item.id === editingSourceId ? source : item))
+    else {
+      setSources(current => [...current, source])
+      setSelectedIds(current => [...current, source.id])
+    }
     setNewSourceName('')
     setNewSourceUrl('')
+    setEditingSourceId(null)
     setSourceModal(false)
   }
 
@@ -143,20 +175,20 @@ function App() {
               </div>
               <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-[#eff1ee] pt-4">
                 <div className="flex gap-1 rounded-lg bg-[#f3f5f2] p-1"><button type="button" onClick={() => setMode('selected')} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${mode === 'selected' ? 'bg-white text-[#34483a] shadow-sm' : 'text-[#879188]'}`}>По выбранным источникам</button><button type="button" onClick={() => setMode('broad')} className={`rounded-md px-3 py-1.5 text-[10px] font-semibold transition ${mode === 'broad' ? 'bg-white text-[#34483a] shadow-sm' : 'text-[#879188]'}`}>Широкий поиск</button></div>
-                {mode === 'selected' ? <button type="button" onClick={() => setSourceModal(true)} className="flex items-center gap-1.5 text-[10px] font-semibold text-[#55745d] hover:text-[#264c35]"><ListFilter size={13} /> Источники ({selectedIds.length}) <ChevronDown size={12} /></button> : <div className="flex items-center gap-1.5 text-[10px] text-[#89948b]"><Globe2 size={13} /> Поиск за пределами вашего списка</div>}
+                {mode === 'selected' ? <button type="button" onClick={() => setSourcePicker(true)} className="flex items-center gap-1.5 text-[10px] font-semibold text-[#55745d] hover:text-[#264c35]"><ListFilter size={13} /> Источники ({selectedIds.length}) <ChevronDown size={12} /></button> : <div className="flex items-center gap-1.5 text-[10px] text-[#89948b]"><Globe2 size={13} /> Поиск за пределами вашего списка</div>}
               </div>
             </form>
 
             <div className="mb-5 grid gap-3 sm:grid-cols-3">
               <div className="stat-card"><div className="flex items-center justify-between"><span className="stat-label">Найдено публикаций</span><div className="stat-icon bg-[#e8f1e9] text-[#527c5d]"><Newspaper size={16} /></div></div><div className="mt-3 flex items-end gap-2"><span className="font-display text-[27px] font-bold tracking-[-1px]">{isSearching ? '…' : hasSearched ? visibleResults.length : results.length}</span><span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-[#66a074]"><ArrowUpRight size={12} /> за период</span></div><div className="mt-1 text-[10px] text-[#9aa39c]">Отдельные размещения, без повторов</div></div>
-              <div className="stat-card"><div className="flex items-center justify-between"><span className="stat-label">Проверено источников</span><div className="stat-icon bg-[#edf0fa] text-[#6577ad]"><Radio size={16} /></div></div><div className="mt-3 flex items-end gap-2"><span className="font-display text-[27px] font-bold tracking-[-1px]">{String(platforms.length).padStart(2, '0')} <span className="text-[15px] font-medium text-[#9ba49d]">/ 03</span></span><span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-[#6685a7]"><ArrowUpRight size={12} /> площадки</span></div><div className="mt-1 text-[10px] text-[#9aa39c]">VK · Одноклассники · MAX</div></div>
+              <div className="stat-card"><div className="flex items-center justify-between"><span className="stat-label">Площадки поиска</span><div className="stat-icon bg-[#edf0fa] text-[#6577ad]"><Radio size={16} /></div></div><div className="mt-3 flex items-end gap-2"><span className="font-display text-[27px] font-bold tracking-[-1px]">{String(platforms.length).padStart(2, '0')} <span className="text-[15px] font-medium text-[#9ba49d]">/ 03</span></span><span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-[#6685a7]"><ArrowUpRight size={12} /> площадки</span></div><div className="mt-1 text-[10px] text-[#9aa39c]">VK · Одноклассники · MAX</div></div>
               <div className="stat-card"><div className="flex items-center justify-between"><span className="stat-label">Время обработки</span><div className="stat-icon bg-[#faf0e4] text-[#bd8a4a]"><Clock3 size={16} /></div></div><div className="mt-3 flex items-end gap-2"><span className="font-display text-[27px] font-bold tracking-[-1px]">{isSearching ? '00:01' : '00:24'}</span><span className="mb-1 flex items-center gap-1 text-[10px] font-semibold text-[#6c9d75]"><ArrowDownRight size={12} /> демо</span></div><div className="mt-1 text-[10px] text-[#9aa39c]">Примерное время поиска</div></div>
             </div>
 
             <section className="panel overflow-hidden">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[#edf0ed] px-5 py-4 md:px-6">
                 <div><div className="flex items-center gap-2"><h2 className="font-display text-[14px] font-bold tracking-[-.25px]">Результаты поиска</h2>{isSearching ? <span className="flex items-center gap-1.5 rounded-full bg-[#fff4df] px-2 py-1 text-[9px] font-bold text-[#aa782c]"><LoaderCircle size={11} className="animate-spin" /> Идёт поиск</span> : hasSearched && <span className="rounded-full bg-[#edf4ed] px-2 py-1 text-[9px] font-bold text-[#578061]">По смыслу</span>}</div><div className="mt-1 text-[10px] text-[#98a199]">Запрос: «{query || '—'}»</div></div>
-                <div className="flex items-center gap-2"><div className="flex items-center gap-1 rounded-lg border border-[#e9ece9] bg-white px-2.5 py-2"><Filter size={12} className="text-[#8c978e]" /><select value={filter} onChange={e => { setFilter(e.target.value); setPage(1) }} className="bg-transparent text-[10px] font-medium text-[#657068] outline-none"><option>Все публикации</option><option>По теме</option><option>Связано</option></select></div><button onClick={exportXlsx} disabled={isSearching} className="flex items-center gap-1.5 rounded-lg border border-[#dfe7df] bg-white px-3 py-2 text-[10px] font-semibold text-[#46674e] transition hover:bg-[#f3f8f3] disabled:opacity-50"><Download size={13} /> <span className="hidden sm:inline">Выгрузить</span> XLSX</button></div>
+                <div className="flex items-center gap-2"><div className="flex items-center gap-1 rounded-lg border border-[#e9ece9] bg-white px-2.5 py-2"><Filter size={12} className="text-[#8c978e]" /><select value={filter} onChange={e => setFilter(e.target.value)} className="bg-transparent text-[10px] font-medium text-[#657068] outline-none"><option>Все публикации</option><option>По теме</option><option>Связано</option></select></div><button onClick={() => void exportXlsx().catch(() => setNotice('Не удалось сформировать XLSX. Повторите попытку.'))} disabled={isSearching} className="flex items-center gap-1.5 rounded-lg border border-[#dfe7df] bg-white px-3 py-2 text-[10px] font-semibold text-[#46674e] transition hover:bg-[#f3f8f3] disabled:opacity-50"><Download size={13} /> <span className="hidden sm:inline">Выгрузить</span> XLSX</button></div>
               </div>
               {notice && <div className="mx-5 mt-3 flex items-center gap-2 rounded-lg bg-[#edf5ed] px-3 py-2 text-[10px] font-medium text-[#47704e]"><Check size={13} />{notice}</div>}
               {isSearching ? <div className="flex min-h-[310px] flex-col items-center justify-center px-6 text-center"><div className="mb-4 grid size-12 place-items-center rounded-2xl bg-[#edf4ed] text-[#4f7b59]"><LoaderCircle size={23} className="animate-spin" /></div><div className="text-[13px] font-semibold text-[#455349]">Проверяем источники</div><p className="mt-1 max-w-[290px] text-[11px] leading-5 text-[#929c94]">Ищем публикации по смыслу и собираем отдельные размещения</p><div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-[#edf0ec]"><div className="h-full w-2/3 animate-pulse rounded-full bg-[#78a481]" /></div></div> : !hasSearched || visibleResults.length === 0 ? <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center"><div className="mb-3 grid size-11 place-items-center rounded-2xl bg-[#f1f3f0] text-[#87938a]"><Search size={20} /></div><div className="text-[13px] font-semibold text-[#47534a]">Подходящих публикаций не найдено</div><p className="mt-1 max-w-[320px] text-[11px] leading-5 text-[#929c94]">Измените запрос, период или выберите другие площадки, затем повторите поиск.</p></div> : <div>
@@ -167,19 +199,21 @@ function App() {
                   <div className="hidden items-center gap-1.5 pt-1 text-[10px] text-[#79847c] md:flex"><Clock3 size={11} className="text-[#a3aca4]" />{result.date}</div>
                   <div className="hidden pt-0.5 md:block"><span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${result.kind === 'По теме' ? 'bg-[#edf4ed] text-[#608269]' : 'bg-[#f2f0e9] text-[#94835a]'}`}>{result.kind}</span></div>
                 </article>)}</div>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 md:px-6"><div className="text-[10px] text-[#919b93]">Показано <span className="font-semibold text-[#556259]">{visibleResults.length}</span> из <span className="font-semibold text-[#556259]">{visibleResults.length}</span> публикаций <span className="ml-1 text-[#b1b8b2]">· демо-данные</span></div><div className="flex items-center gap-1"><button onClick={() => setPage(Math.max(1, page - 1))} aria-label="Предыдущая страница" className="page-button"><ChevronLeft size={14} /></button><button className="page-button page-current">{page}</button><button onClick={() => setPage(page + 1)} aria-label="Следующая страница" className="page-button"><ChevronRight size={14} /></button></div></div>
+                <div className="flex flex-wrap items-center justify-between gap-3 px-5 py-3.5 md:px-6"><div className="text-[10px] text-[#919b93]">Показано <span className="font-semibold text-[#556259]">{visibleResults.length}</span> публикаций <span className="ml-1 text-[#b1b8b2]">· демо-данные</span></div><span className="text-[9px] text-[#a0aaa2]">По дате публикации ↓</span></div>
               </div>}
             </section>
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#e9ede8] bg-white/65 px-4 py-3 text-[10px] leading-5 text-[#8f9991]"><CircleAlert size={13} className="mt-0.5 shrink-0 text-[#9eaa9e]" /><span>Показанные публикации — демонстрационные примеры интерфейса. Реальный поиск, охват площадок и доступность ссылок появятся после подключения сервера и источников данных.</span></div>
           </> : <>
-            <div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[1.7px] text-[#8b978d]"><Users size={13} /> Справочник</div><h1 className="font-display text-[27px] font-bold tracking-[-1.15px] md:text-[32px]">Источники публикаций</h1><p className="mt-1.5 text-[12px] text-[#8a948d]">Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={() => setSourceModal(true)} className="flex items-center gap-2 rounded-lg bg-[#204b39] px-4 py-2.5 text-[11px] font-semibold text-white hover:bg-[#173b2d]"><Plus size={15} /> Добавить источник</button></div>
-            <div className="panel overflow-hidden"><div className="flex items-center justify-between border-b border-[#edf0ed] px-5 py-4 md:px-6"><div><h2 className="font-display text-[14px] font-bold">Мой список</h2><p className="mt-1 text-[10px] text-[#98a199]">{sources.length} источника · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => setSelectedIds(sources.map(s => s.id))} className="text-[10px] font-semibold text-[#57745e]">Выбрать все</button></div><div>{sources.map(source => <div key={source.id} className="flex flex-wrap items-center gap-3 border-b border-[#f0f2ef] px-5 py-4 last:border-0 md:px-6"><button onClick={() => toggleSource(source.id)} aria-label={`Выбрать ${source.name}`} className={`grid size-[18px] shrink-0 place-items-center rounded border ${selectedIds.includes(source.id) ? 'border-[#527b5b] bg-[#527b5b] text-white' : 'border-[#d7ded7] bg-white text-transparent'}`}><Check size={12} /></button><div style={{ backgroundColor: `${source.color}18`, color: source.color }} className="grid size-9 shrink-0 place-items-center rounded-[11px] text-[12px] font-bold">{source.initials}</div><div className="min-w-[130px] flex-1"><div className="text-[11px] font-semibold text-[#455148]">{source.name}</div><a href={`https://${source.url}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[9px] text-[#98a39a] hover:text-[#55765c]">{source.url} <ExternalLink size={9} /></a></div><span className={`rounded px-2 py-1 text-[9px] font-bold ${platformStyle[source.platform]}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="hidden w-20 text-right text-[10px] text-[#7d8980] sm:block">{source.followers}</span><span className="flex items-center gap-1.5 text-[9px] font-medium text-[#699371]"><span className="size-1.5 rounded-full bg-[#79a984]" /> Доступен</span><button onClick={() => { setSources(list => list.filter(s => s.id !== source.id)); setSelectedIds(ids => ids.filter(id => id !== source.id)) }} aria-label={`Удалить ${source.name}`} className="ml-1 rounded-md p-2 text-[#b0b8b1] hover:bg-[#fff0ee] hover:text-[#bd6555]"><Trash2 size={14} /></button></div>)}</div><div className="bg-[#fafbf9] px-5 py-3 text-[10px] text-[#929c94] md:px-6">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div></div>
+            <div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[1.7px] text-[#8b978d]"><Users size={13} /> Справочник</div><h1 className="font-display text-[27px] font-bold tracking-[-1.15px] md:text-[32px]">Источники публикаций</h1><p className="mt-1.5 text-[12px] text-[#8a948d]">Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={() => { setEditingSourceId(null); setNewSourceName(''); setNewSourceUrl(''); setSourceModal(true) }} className="flex items-center gap-2 rounded-lg bg-[#204b39] px-4 py-2.5 text-[11px] font-semibold text-white hover:bg-[#173b2d]"><Plus size={15} /> Добавить источник</button></div>
+            <div className="panel overflow-hidden"><div className="flex items-center justify-between border-b border-[#edf0ed] px-5 py-4 md:px-6"><div><h2 className="font-display text-[14px] font-bold">Мой список</h2><p className="mt-1 text-[10px] text-[#98a199]">{sources.length} источника · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => setSelectedIds(sources.map(s => s.id))} className="text-[10px] font-semibold text-[#57745e]">Выбрать все</button></div><div>{sources.map(source => <div key={source.id} className="flex flex-wrap items-center gap-3 border-b border-[#f0f2ef] px-5 py-4 last:border-0 md:px-6"><button onClick={() => toggleSource(source.id)} aria-label={`Выбрать ${source.name}`} className={`grid size-[18px] shrink-0 place-items-center rounded border ${selectedIds.includes(source.id) ? 'border-[#527b5b] bg-[#527b5b] text-white' : 'border-[#d7ded7] bg-white text-transparent'}`}><Check size={12} /></button><div style={{ backgroundColor: `${source.color}18`, color: source.color }} className="grid size-9 shrink-0 place-items-center rounded-[11px] text-[12px] font-bold">{source.initials}</div><div className="min-w-[130px] flex-1"><div className="text-[11px] font-semibold text-[#455148]">{source.name}</div><a href={`https://${source.url}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[9px] text-[#98a39a] hover:text-[#55765c]">{source.url} <ExternalLink size={9} /></a></div><span className={`rounded px-2 py-1 text-[9px] font-bold ${platformStyle[source.platform]}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="hidden w-20 text-right text-[10px] text-[#7d8980] sm:block">{source.followers}</span><span className="flex items-center gap-1.5 text-[9px] font-medium text-[#699371]"><span className="size-1.5 rounded-full bg-[#79a984]" /> Доступен</span><button onClick={() => { setEditingSourceId(source.id); setNewSourceName(source.name); setNewSourceUrl(source.url); setNewSourcePlatform(source.platform); setSourceModal(true) }} aria-label={`Изменить ${source.name}`} className="rounded-md p-2 text-[#a0aaa2] hover:bg-[#edf4ed] hover:text-[#527b5b]"><Pencil size={13} /></button><button onClick={() => { setSources(list => list.filter(s => s.id !== source.id)); setSelectedIds(ids => ids.filter(id => id !== source.id)) }} aria-label={`Удалить ${source.name}`} className="rounded-md p-2 text-[#b0b8b1] hover:bg-[#fff0ee] hover:text-[#bd6555]"><Trash2 size={14} /></button></div>)}</div><div className="bg-[#fafbf9] px-5 py-3 text-[10px] text-[#929c94] md:px-6">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div></div>
           </>}
           <footer className="mt-7 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[#abb3ac]"><span>Медиаслед · Красноярский край</span><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#83a98a]" /> Демо-версия интерфейса</span></footer>
         </div>
       </main>
 
-      {sourceModal && <div className="fixed inset-0 z-40 grid place-items-center bg-[#18221b]/35 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) setSourceModal(false) }}><div className="w-full max-w-[440px] rounded-2xl border border-[#eaeeea] bg-white p-6 shadow-[0_20px_70px_rgba(25,49,32,.18)]"><div className="mb-5 flex items-start justify-between"><div><div className="mb-1 grid size-9 place-items-center rounded-xl bg-[#edf4ed] text-[#587d60]"><Plus size={17} /></div><h3 className="mt-3 font-display text-[17px] font-bold">Новый источник</h3><p className="mt-1 text-[10px] text-[#909a92]">Добавьте публичное сообщество или канал</p></div><button onClick={() => setSourceModal(false)} aria-label="Закрыть" className="rounded-lg p-2 text-[#98a29a] hover:bg-[#f3f5f2]"><X size={16} /></button></div><form onSubmit={addSource} className="space-y-4"><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Название источника</span><input required value={newSourceName} onChange={e => setNewSourceName(e.target.value)} placeholder="Например, Новости района" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Ссылка на сообщество</span><input required value={newSourceUrl} onChange={e => setNewSourceUrl(e.target.value)} placeholder="https://vk.com/community" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Площадка</span><select value={newSourcePlatform} onChange={e => setNewSourcePlatform(e.target.value as Platform)} className="form-input"><option value="VK">ВКонтакте</option><option value="OK">Одноклассники</option><option value="MAX">MAX</option></select></label><div className="flex justify-end gap-2 border-t border-[#eef0ed] pt-4"><button type="button" onClick={() => setSourceModal(false)} className="rounded-lg px-4 py-2.5 text-[10px] font-semibold text-[#7b867e] hover:bg-[#f5f6f4]">Отмена</button><button className="rounded-lg bg-[#204b39] px-4 py-2.5 text-[10px] font-semibold text-white hover:bg-[#173b2d]">Добавить источник</button></div></form></div></div>}
+      {sourcePicker && <div className="fixed inset-0 z-40 grid place-items-center bg-[#18221b]/35 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) setSourcePicker(false) }}><div className="w-full max-w-[420px] rounded-2xl border border-[#eaeeea] bg-white p-5 shadow-[0_20px_70px_rgba(25,49,32,.18)]"><div className="mb-4 flex items-start justify-between"><div><h3 className="font-display text-[16px] font-bold">Источники для поиска</h3><p className="mt-1 text-[10px] text-[#909a92]">В поиск попадут отмеченные сообщества</p></div><button onClick={() => setSourcePicker(false)} aria-label="Закрыть" className="rounded-lg p-2 text-[#98a29a] hover:bg-[#f3f5f2]"><X size={16} /></button></div><div className="max-h-[50vh] overflow-y-auto">{sources.map(source => <label key={source.id} className="flex cursor-pointer items-center gap-3 border-t border-[#f0f2ef] py-3"><input type="checkbox" checked={selectedIds.includes(source.id)} onChange={() => toggleSource(source.id)} className="accent-[#527b5b]" /><span style={{ backgroundColor: `${source.color}18`, color: source.color }} className="grid size-8 place-items-center rounded-lg text-[10px] font-bold">{source.initials}</span><span className="min-w-0 flex-1"><span className="block truncate text-[11px] font-semibold text-[#4c594f]">{source.name}</span><span className="mt-0.5 block text-[9px] text-[#98a199]">{source.url}</span></span><span className={`rounded px-1.5 py-1 text-[8px] font-bold ${platformStyle[source.platform]}`}>{source.platform}</span></label>)}</div><div className="mt-3 flex items-center justify-between border-t border-[#eef0ed] pt-4"><button onClick={() => { setEditingSourceId(null); setNewSourceName(''); setNewSourceUrl(''); setSourcePicker(false); setSourceModal(true) }} className="flex items-center gap-1 text-[10px] font-semibold text-[#55745d]"><Plus size={13} /> Добавить источник</button><button onClick={() => setSourcePicker(false)} className="rounded-lg bg-[#204b39] px-4 py-2.5 text-[10px] font-semibold text-white">Готово · {selectedIds.length}</button></div></div></div>}
+
+      {sourceModal && <div className="fixed inset-0 z-40 grid place-items-center bg-[#18221b]/35 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) setSourceModal(false) }}><div className="w-full max-w-[440px] rounded-2xl border border-[#eaeeea] bg-white p-6 shadow-[0_20px_70px_rgba(25,49,32,.18)]"><div className="mb-5 flex items-start justify-between"><div><div className="mb-1 grid size-9 place-items-center rounded-xl bg-[#edf4ed] text-[#587d60]">{editingSourceId ? <Pencil size={16} /> : <Plus size={17} />}</div><h3 className="mt-3 font-display text-[17px] font-bold">{editingSourceId ? 'Изменить источник' : 'Новый источник'}</h3><p className="mt-1 text-[10px] text-[#909a92]">Публичное сообщество или канал</p></div><button onClick={() => setSourceModal(false)} aria-label="Закрыть" className="rounded-lg p-2 text-[#98a29a] hover:bg-[#f3f5f2]"><X size={16} /></button></div><form onSubmit={addSource} className="space-y-4"><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Название источника</span><input required value={newSourceName} onChange={e => setNewSourceName(e.target.value)} placeholder="Например, Новости района" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Ссылка на сообщество</span><input required value={newSourceUrl} onChange={e => setNewSourceUrl(e.target.value)} placeholder="https://vk.com/community" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Площадка</span><select value={newSourcePlatform} onChange={e => setNewSourcePlatform(e.target.value as Platform)} className="form-input"><option value="VK">ВКонтакте</option><option value="OK">Одноклассники</option><option value="MAX">MAX</option></select></label><div className="flex justify-end gap-2 border-t border-[#eef0ed] pt-4"><button type="button" onClick={() => { setSourceModal(false); setEditingSourceId(null) }} className="rounded-lg px-4 py-2.5 text-[10px] font-semibold text-[#7b867e] hover:bg-[#f5f6f4]">Отмена</button><button className="rounded-lg bg-[#204b39] px-4 py-2.5 text-[10px] font-semibold text-white hover:bg-[#173b2d]">{editingSourceId ? 'Сохранить' : 'Добавить источник'}</button></div></form></div></div>}
     </div>
   )
 }
