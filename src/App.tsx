@@ -1,180 +1,340 @@
-import { useMemo, useState } from 'react'
-import type { FormEvent } from 'react'
+import { useState } from 'react'
+import type { FormEvent, ReactNode } from 'react'
 import {
-  Activity, BarChart3, Bell, Bookmark, Check, ChevronDown,
-  ChevronLeft, ChevronRight, CircleAlert, Download, ExternalLink,
-  Heart, LoaderCircle, MapPin, MessageCircle, Newspaper,
-  Plus, Search, Share2, Trash2, Users, X,
+  ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3, Bell,
+  Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
+  CircleHelp, Download, ExternalLink, Heart, MapPin, MessageCircle,
+  MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Star, TrendingUp, Users, X,
 } from 'lucide-react'
-import * as XLSX from 'xlsx'
 
+type Page = 'search' | 'results' | 'publication' | 'sources' | 'saved' | 'analytics' | 'settings'
 type Platform = 'VK' | 'OK' | 'MAX'
-type Source = { id: number; name: string; platform: Platform; url: string; followers: string; color: string; initials: string }
-type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; initials: string }
+type Source = { id: number; name: string; platform: Platform; url: string; followers: string; region: string; active: boolean; color: string }
+type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean }
+type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; image: string }
 
 const initialSources: Source[] = [
-  { id: 1, name: 'МВД 24', platform: 'VK', url: 'vk.com/mvd24', followers: '42,8 тыс.', color: '#5278d9', initials: 'М' },
-  { id: 2, name: 'Город Красноярск', platform: 'VK', url: 'vk.com/krasnoyarskrf', followers: '118 тыс.', color: '#36a281', initials: 'Г' },
-  { id: 3, name: 'Наш Красноярский край', platform: 'OK', url: 'ok.ru/krasnoyarsk', followers: '26,4 тыс.', color: '#e98a35', initials: 'Н' },
-  { id: 4, name: 'Краевая администрация', platform: 'MAX', url: 'max.ru/krskstate', followers: '8,2 тыс.', color: '#7358ce', initials: 'К' },
+  { id: 1, name: 'Наш Красноярский край', platform: 'VK', url: 'vk.com/krskstate', followers: '245K', region: 'Красноярский край', active: true, color: '#284b83' },
+  { id: 2, name: 'Спорт_Красноярск', platform: 'VK', url: 'vk.com/sportkrsk', followers: '128K', region: 'Красноярский край', active: true, color: '#26364e' },
+  { id: 3, name: 'Новости Красноярска', platform: 'OK', url: 'ok.ru/news.krsk', followers: '86K', region: 'Красноярский край', active: true, color: '#d5222b' },
+  { id: 4, name: 'Культура Красноярья', platform: 'OK', url: 'ok.ru/culturekrsk', followers: '42K', region: 'Красноярский край', active: true, color: '#99820f' },
+  { id: 5, name: 'Красноярск. Главное', platform: 'MAX', url: 'max.ru/krasnoyarsk', followers: '38K', region: 'Красноярский край', active: true, color: '#5d4a37' },
+  { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
-
-const sampleResults: Publication[] = [
-  { id: 1, source: 'МВД 24', platform: 'VK', date: '12 мар 2024, 14:27', title: 'В Красноярске открылся новый ледовый дворец', excerpt: 'Сегодня состоялось долгожданное открытие ледового дворца на левом берегу. Это современный комплекс с двумя аренами, зоной для зрителей и комфортной инфраструктурой…', url: 'https://vk.com/wall-120000_8451', kind: 'По теме', color: '#5278d9', initials: 'М' },
-  { id: 2, source: 'Наш Красноярский край', platform: 'OK', date: '13 мар 2024, 10:05', title: 'Фоторепортаж: как выглядит новый ледовый дворец изнутри', excerpt: 'Показываем, как устроен новый ледовый дворец в Красноярске. Просторные раздевалки, современный тренировочный лёд и две игровые арены…', url: 'https://ok.ru/group/70000000000001/topic/159001', kind: 'По теме', color: '#e98a35', initials: 'Н' },
-  { id: 3, source: 'МВД 24', platform: 'VK', date: '14 мар 2024, 18:40', title: 'Первые тренировки в новом ледовом дворце', excerpt: 'Юные хоккеисты уже оценили новую арену. Тренеры отмечают отличное качество льда и удобные раздевалки.', url: 'https://vk.com/wall-391123_18204', kind: 'По теме', color: '#5278d9', initials: 'М' },
-  { id: 4, source: 'Краевая администрация', platform: 'MAX', date: '14 мар 2024, 16:12', title: 'Губернатор о значении нового ледового дворца для края', excerpt: 'Новый ледовый дворец — это важный шаг в развитии спортивной инфраструктуры региона. Здесь будут проходить соревнования краевого уровня…', url: 'https://max.ru/krskstate/AZabc123', kind: 'Связано', color: '#7358ce', initials: 'К' },
-  { id: 5, source: 'Город Красноярск', platform: 'VK', date: '15 мар 2024, 09:30', title: 'Красноярцы делятся впечатлениями от открытия', excerpt: 'Горожане активно обсуждают новый ледовый дворец в социальных сетях. Собрали первые отзывы посетителей комплекса.', url: 'https://vk.com/wall-120000_8410', kind: 'Связано', color: '#36a281', initials: 'Г' },
+const initialSaved: SavedQuery[] = [
+  { id: 1, name: 'Ледовый дворец', query: 'открытие ледового дворца Красноярск', period: '01.03.2024 — 31.03.2024', region: 'Красноярский край', favorite: true },
+  { id: 2, name: 'Наводнение 2024', query: 'наводнение Красноярский край', period: '01.04.2024 — 30.04.2024', region: 'Красноярский край', favorite: true },
+  { id: 3, name: 'Губернатор края', query: 'губернатор Красноярского края', period: '01.01.2024 — 31.03.2024', region: 'Красноярский край', favorite: true },
+  { id: 4, name: 'Развитие спорта', query: 'развитие спорта Красноярск', period: '01.01.2024 — 31.12.2024', region: 'Красноярский край', favorite: true },
+  { id: 5, name: 'Строительство', query: 'строительство Красноярск', period: '01.01.2024 — 31.12.2024', region: 'Красноярский край', favorite: true },
 ]
-
-const platformStyle: Record<Platform, string> = { VK: 'bg-[#eaf0ff] text-[#4266b0]', OK: 'bg-[#fff1e3] text-[#bd7026]', MAX: 'bg-[#f0eaff] text-[#7254bd]' }
+const repositoryResults: Publication[] = [
+  { id: 1, source: 'МВД 24', platform: 'VK', date: '12 мар 2024, 14:27', title: 'В Красноярске открылся новый ледовый дворец', excerpt: 'Сегодня состоялось долгожданное открытие ледового дворца на левом берегу. Это современный комплекс с двумя аренами, зоной для зрителей и комфортной инфраструктурой…', url: 'https://vk.com/wall-120000_8451', kind: 'По теме', color: '#5278d9', image: '/images/arena-exterior.jpg' },
+  { id: 2, source: 'Наш Красноярский край', platform: 'OK', date: '13 мар 2024, 10:05', title: 'Фоторепортаж: как выглядит новый ледовый дворец изнутри', excerpt: 'Показываем, как устроен новый ледовый дворец в Красноярске. Просторные раздевалки, современный тренировочный лёд и две игровые арены…', url: 'https://ok.ru/group/70000000000001/topic/159001', kind: 'По теме', color: '#e98a35', image: '/images/arena-interior.jpg' },
+  { id: 3, source: 'МВД 24', platform: 'VK', date: '14 мар 2024, 18:40', title: 'Первые тренировки в новом ледовом дворце', excerpt: 'Юные хоккеисты уже оценили новую арену. Тренеры отмечают отличное качество льда и удобные раздевалки.', url: 'https://vk.com/wall-391123_18204', kind: 'По теме', color: '#5278d9', image: '/images/hockey-training.jpg' },
+  { id: 4, source: 'Краевая администрация', platform: 'MAX', date: '14 мар 2024, 16:12', title: 'Губернатор о значении нового ледового дворца для края', excerpt: 'Новый ледовый дворец — это важный шаг в развитии спортивной инфраструктуры региона. Здесь будут проходить соревнования краевого уровня…', url: 'https://max.ru/krskstate/AZabc123', kind: 'Связано', color: '#7358ce', image: '/images/arena-evening.jpg' },
+  { id: 5, source: 'Город Красноярск', platform: 'VK', date: '15 мар 2024, 09:30', title: 'Красноярцы делятся впечатлениями от открытия', excerpt: 'Горожане активно обсуждают новый ледовый дворец в социальных сетях. Собрали первые отзывы посетителей комплекса.', url: 'https://vk.com/wall-120000_8410', kind: 'Связано', color: '#36a281', image: '/images/arena-ceremony.jpg' },
+]
+const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX' }
+const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2024', 'развитие спорта']
 
 function App() {
-  const [view, setView] = useState<'monitor' | 'sources'>('monitor')
-  const [query, setQuery] = useState('Открытие нового ледового дворца в Красноярске, отзывы и репортажи')
+  const [page, setPage] = useState<Page>('search')
+  const [query, setQuery] = useState('')
   const [periodStart, setPeriodStart] = useState('2024-03-01')
   const [periodEnd, setPeriodEnd] = useState('2024-03-31')
+  const [region, setRegion] = useState('Красноярский край')
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
-  const [mode, setMode] = useState<'selected' | 'broad'>('broad')
   const [sources, setSources] = useState(initialSources)
-  const [selectedIds, setSelectedIds] = useState<number[]>(initialSources.map(s => s.id))
-  const [results, setResults] = useState(sampleResults)
-  const [isSearching, setIsSearching] = useState(false)
-  const [hasSearched, setHasSearched] = useState(true)
-  const [sourceModal, setSourceModal] = useState(false)
-  const [newSourceName, setNewSourceName] = useState('')
-  const [newSourceUrl, setNewSourceUrl] = useState('')
-  const [newSourcePlatform, setNewSourcePlatform] = useState<Platform>('VK')
+  const [saved, setSaved] = useState(initialSaved)
   const [notice, setNotice] = useState('')
-  const [filter, setFilter] = useState('Все публикации')
-  const [sortOrder, setSortOrder] = useState<'relevance' | 'newest'>('relevance')
-  const [page, setPage] = useState(1)
+  const [settingsTab, setSettingsTab] = useState('Основные')
+  const [sourceModal, setSourceModal] = useState(false)
+  const [sourceName, setSourceName] = useState('')
+  const [sourceUrl, setSourceUrl] = useState('')
+  const [sourcePlatform, setSourcePlatform] = useState<Platform>('VK')
+  const [sourceEdit, setSourceEdit] = useState<number | null>(null)
+  const [settingsSaved, setSettingsSaved] = useState(false)
+  const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
 
-  const visibleResults = useMemo(() => {
-    const filtered = results.filter(result => platforms.includes(result.platform) && (filter === 'Все публикации' || result.kind === filter))
-    return sortOrder === 'newest' ? [...filtered].reverse() : filtered
-  }, [filter, platforms, results, sortOrder])
-  const togglePlatform = (p: Platform) => setPlatforms(current => current.includes(p) ? current.filter(x => x !== p) : [...current, p])
-  const toggleSource = (id: number) => setSelectedIds(current => current.includes(id) ? current.filter(x => x !== id) : [...current, id])
-
-  const runSearch = (event: FormEvent) => {
+  const togglePlatform = (platform: Platform) => setPlatforms(current => current.includes(platform) ? current.filter(value => value !== platform) : [...current, platform])
+  const runSearch = (event: FormEvent) => { event.preventDefault(); setNotice(''); setPage('results') }
+  const openSaved = (item: SavedQuery) => { setQuery(item.query); setRegion(item.region); setPage('search'); setNotice('Запрос загружен. Нажмите «Найти», чтобы обновить результаты.') }
+  const openSourceDialog = (source?: Source) => { setSourceEdit(source?.id ?? null); setSourceName(source?.name ?? ''); setSourceUrl(source?.url ?? ''); setSourcePlatform(source?.platform ?? 'VK'); setSourceModal(true) }
+  const submitSource = (event: FormEvent) => {
     event.preventDefault()
-    if (!query.trim() || platforms.length === 0 || (mode === 'selected' && selectedIds.length === 0)) return
-    setIsSearching(true)
-    setHasSearched(false)
-    setNotice('')
-    window.setTimeout(() => {
-      const queryResults = ['двор', 'лед', 'спорт', 'губернатор', 'открытие', 'красноярск', 'школ'].some(term => query.toLocaleLowerCase().includes(term))
-        ? sampleResults.filter(result => platforms.includes(result.platform) && (mode === 'broad' || selectedIds.some(id => sources.find(source => source.id === id)?.name === result.source)))
-        : []
-      setResults(queryResults)
-      setIsSearching(false)
-      setHasSearched(true)
-    }, 1300)
+    if (!sourceName.trim() || !sourceUrl.trim()) return
+    if (sourceEdit !== null) setSources(current => current.map(item => item.id === sourceEdit ? { ...item, name: sourceName.trim(), url: sourceUrl.trim(), platform: sourcePlatform } : item))
+    else setSources(current => [{ id: Date.now(), name: sourceName.trim(), url: sourceUrl.trim(), platform: sourcePlatform, followers: '—', region, active: true, color: sourcePlatform === 'VK' ? '#5278d9' : sourcePlatform === 'OK' ? '#e98a35' : '#7358ce' }, ...current])
+    setSourceModal(false); setNotice(sourceEdit === null ? 'Источник добавлен.' : 'Источник обновлён.')
   }
-
-  const exportXlsx = () => {
-    const rows = visibleResults.map((r, index) => ({
-      '№': index + 1, 'Площадка': r.platform, 'Источник': r.source, 'Заголовок': r.title,
-      'Дата публикации': r.date, 'Выдержка': r.excerpt, 'Ссылка': r.url,
-      'Запрос': query, 'Период': `${periodStart} — ${periodEnd}`,
-    }))
+  const toggleSource = (id: number) => setSources(current => current.map(item => item.id === id ? { ...item, active: !item.active } : item))
+  const removeSaved = (id: number) => setSaved(current => current.filter(item => item.id !== id))
+  const exportResults = async () => {
+    const XLSX = await import('xlsx')
+    const rows = repositoryResults.map((item, index) => ({ '№': index + 1, 'Площадка': item.platform, 'Источник': item.source, 'Заголовок': item.title, 'Дата': item.date, 'Ссылка': item.url }))
     const book = XLSX.utils.book_new()
-    const sheet = XLSX.utils.json_to_sheet(rows.length ? rows : [{ '№': '', 'Площадка': '', 'Источник': '', 'Заголовок': '', 'Дата публикации': '', 'Выдержка': '', 'Ссылка': '', 'Запрос': query, 'Период': `${periodStart} — ${periodEnd}` }])
-    XLSX.utils.book_append_sheet(book, sheet, 'Публикации')
-    XLSX.utils.book_append_sheet(book, XLSX.utils.aoa_to_sheet([['Запрос', query], ['Период', `${periodStart} — ${periodEnd}`], ['Регион', 'Красноярский край'], ['Режим', mode === 'broad' ? 'Широкий поиск' : 'По списку источников'], ['Публикаций', visibleResults.length], ['Демо-данные', 'Да — результаты примера, не живой поиск']]), 'Параметры поиска')
-    XLSX.writeFile(book, 'medi sled-podborka.xlsx'.replace(' ', ''))
-    setNotice('Таблица Excel скачана')
-    window.setTimeout(() => setNotice(''), 2800)
+    XLSX.utils.book_append_sheet(book, XLSX.utils.json_to_sheet(rows), 'Публикации')
+    XLSX.writeFile(book, 'media-monitoring-results.xlsx')
   }
 
-  const addSource = (event: FormEvent) => {
-    event.preventDefault()
-    if (!newSourceName.trim() || !newSourceUrl.trim()) return
-    const source: Source = { id: Date.now(), name: newSourceName.trim(), platform: newSourcePlatform, url: newSourceUrl.trim().replace(/^https?:\/\//, ''), followers: '—', color: newSourcePlatform === 'VK' ? '#5278d9' : newSourcePlatform === 'OK' ? '#e98a35' : '#7358ce', initials: newSourceName.trim().slice(0, 1).toUpperCase() }
-    setSources(current => [...current, source])
-    setSelectedIds(current => [...current, source.id])
-    setNewSourceName('')
-    setNewSourceUrl('')
-    setSourceModal(false)
-  }
+  return <div className="app-shell">
+    <aside className="app-sidebar">
+      <div className="brand-card"><div className="brand-mark brand-flame" aria-hidden="true"><i/><i/><i/></div><div><b>МЕДИАМОНИТОРИНГ<br/>СОЦСЕТЕЙ</b><span>Красноярский край</span></div></div>
+      <nav className="sidebar-nav">
+        <NavItem active={page === 'search'} icon={<Search size={18}/>} onClick={() => setPage('search')}>Поиск публикаций</NavItem>
+        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Результаты</NavItem>
+        <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
+        <NavItem active={page === 'saved'} icon={<Bookmark size={18}/>} onClick={() => setPage('saved')}>Сохранённые запросы</NavItem>
+        <NavItem active={page === 'analytics'} icon={<BarChart3 size={18}/>} onClick={() => setPage('analytics')}>Аналитика</NavItem>
+        <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
+      </nav>
+      <div className="nav-user-actions"><button className="nav-bell" aria-label="Уведомления"><Bell size={18}/><i/></button><div className="nav-profile"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={14}/></div></div>
+      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={15}/></div></div>
+    </aside>
+    <main className="main-area">
+      <div className={`page-content ${page === 'search' ? 'page-content--flush' : ''}`}>
+        {notice && <div className="notice"><Check size={16}/>{notice}<button onClick={() => setNotice('')} aria-label="Закрыть"><X size={15}/></button></div>}
+        {page === 'search' && <SearchPage query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} platforms={platforms} togglePlatform={togglePlatform} onSubmit={runSearch}/>} 
+        {page === 'results' && <ResultsPage results={repositoryResults} query={query || 'Открытие нового ледового дворца в Красноярске'} periodStart={periodStart} periodEnd={periodEnd} onExport={exportResults} onSearch={() => setPage('search')} onOpen={item => { setSelectedPublication(item); setPage('publication') }}/>} 
+        {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} onBack={() => setPage('results')}/>} 
+        {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onDelete={id => setSources(current => current.filter(item => item.id !== id))}/>}
+        {page === 'saved' && <SavedPage items={saved} onOpen={openSaved} onRemove={removeSaved} onNew={() => setPage('search')} onFavorite={id => setSaved(current => current.map(item => item.id === id ? { ...item, favorite: !item.favorite } : item))}/>} 
+        {page === 'analytics' && <AnalyticsPage/>}
+        {page === 'settings' && <SettingsPage tab={settingsTab} setTab={setSettingsTab} region={region} setRegion={setRegion} onSave={() => { setSettingsSaved(true); window.setTimeout(() => setSettingsSaved(false), 2500) }} saved={settingsSaved}/>}
+      </div>
+    </main>
+    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}><div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div><label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label><label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="vk.com/community"/></label><label>Площадка<select value={sourcePlatform} onChange={event => setSourcePlatform(event.target.value as Platform)}><option>VK</option><option>OK</option><option>MAX</option></select></label><div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div></form></div>}
+  </div>
+}
 
-  return (
-    <div className="app-shell min-h-screen bg-[#f5f7fa] text-[#202943]">
-      <aside className="app-sidebar fixed inset-y-0 left-0 z-20 flex w-[206px] flex-col border-r border-[#e9edf2] bg-white px-3 py-3">
-        <div className="brand-card mb-4 flex min-h-[88px] items-center gap-3 rounded-b-[17px] rounded-t-[5px] px-4 py-3 text-white">
-          <div className="brand-mark"><Activity size={23} strokeWidth={2.4} /></div>
-          <div><div className="font-display text-[13px] font-extrabold leading-[1.15] tracking-[-.25px]">МЕДИАМОНИТОРИНГ<br />СОЦСЕТЕЙ</div><div className="mt-1.5 text-[9px] font-medium text-white/80">Красноярский край</div></div>
+function NavItem({ active, icon, onClick, children }: { active: boolean; icon: ReactNode; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} className={`nav-link ${active ? 'nav-active' : ''}`}>{icon}<span>{children}</span></button> }
+
+function PlatformBadge({ platform, size = 44 }: { platform: Platform; size?: number }) {
+  if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size, fontSize: Math.round(size * 0.3) }}>VK</span>
+  if (platform === 'OK') return <span className="pl-badge pl-ok" style={{ width: size, height: size }}>
+    <svg width={Math.round(size * 0.56)} height={Math.round(size * 0.56)} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="12" cy="6.7" r="3.1" fill="#fff"/>
+      <path d="M6.6 12.9c1.6 1.6 3.4 2.4 5.4 2.4s3.8-.8 5.4-2.4" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
+      <path d="M9 15.6c-.7 1.9-1.9 3.5-3.6 4.9M15 15.6c.7 1.9 1.9 3.5 3.6 4.9" stroke="#fff" strokeWidth="2.2" strokeLinecap="round"/>
+    </svg>
+  </span>
+  return <span className="pl-badge pl-max" style={{ width: size, height: size }}>
+    <svg width={Math.round(size * 0.58)} height={Math.round(size * 0.58)} viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M12 3.4a8.6 8.6 0 1 0 5 15.6l3.7 1-1-3.5a8.6 8.6 0 0 0-7.7-13.1Z" fill="#fff"/>
+      <circle cx="12" cy="12" r="2.9" fill="#6c3bf5"/>
+    </svg>
+  </span>
+}
+
+function Switch({ checked, onChange, blue, large, label }: { checked: boolean; onChange: () => void; blue?: boolean; large?: boolean; label: string }) {
+  return <button type="button" role="switch" aria-checked={checked} aria-label={label} className={`switch ${blue ? 'switch-blue' : ''} ${large ? 'switch-lg' : ''} ${checked ? 'switch-on' : ''}`} onClick={onChange}><i/></button>
+}
+
+function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, platforms, togglePlatform, onSubmit }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void }) {
+  const [scope, setScope] = useState<'all' | 'selected'>('all')
+  const [officialOnly, setOfficialOnly] = useState(false)
+  const [withMedia, setWithMedia] = useState(false)
+  const [excludeReposts, setExcludeReposts] = useState(false)
+  return <div className="search-page">
+    <div className="search-main">
+      <div className="search-heading"><h1>Поиск публикаций</h1><p>Найдите упоминания, новости и материалы в социальных сетях</p></div>
+      <form className="search-card" onSubmit={onSubmit}>
+        <div className="search-row">
+          <input value={query} onChange={event => setQuery(event.target.value)} placeholder="Опишите тему, событие, укажите ключевые слова или вставьте текст новости..."/>
+          <button type="submit" className="find-button"><Search size={16}/>Найти</button>
         </div>
-        <nav className="space-y-1">
-          <button onClick={() => setView('monitor')} className={`nav-link ${view === 'monitor' ? 'nav-active' : ''}`}><Search size={17} /> Новый поиск</button>
-          <button onClick={() => setView('monitor')} className="nav-link"><Newspaper size={16} /> Результаты</button>
-          <button onClick={() => setView('sources')} className={`nav-link ${view === 'sources' ? 'nav-active' : ''}`}><Users size={16} /> Источники</button>
-          <button onClick={() => setNotice('Сохранённые запросы появятся после подключения сервера')} className="nav-link"><Bookmark size={16} /> Сохранённые запросы</button>
-        </nav>
-        <div className="quick-search-note mt-auto rounded-xl p-3.5">
-          <div className="mb-2 text-[#e41e3a]"><BarChart3 size={17} fill="currentColor" /></div>
-          <div className="text-[10px] font-bold text-[#263657]">Быстрый поиск</div>
-          <p className="mt-1 text-[10px] leading-[1.5] text-[#69758b]">Публикаций в соцсетях о событиях и темах, важных для Красноярского края.</p>
-        </div>
-      </aside>
-
-      <main className="min-h-screen pl-[206px]">
-        <header className="app-header sticky top-0 z-10 flex h-[42px] items-center justify-end border-b border-[#e9edf2] bg-white/95 px-5 backdrop-blur md:px-8">
-          <div className="flex items-center gap-3"><button aria-label="Уведомления" className="rounded-full p-2 text-[#394867] hover:bg-[#f4f6f9]"><Bell size={15} /></button><div className="hidden h-6 border-l border-[#edf0f4] sm:block" /><div className="grid size-7 place-items-center rounded-full bg-[#e8ebf1] text-[#707b8f]"><Users size={15} /></div><div className="hidden sm:block"><div className="text-[10px] font-bold leading-tight text-[#293651]">Иван Петров</div><div className="text-[8px] leading-tight text-[#8490a3]">Сотрудник агентства</div></div><ChevronDown size={12} className="text-[#58657b]" /></div>
-        </header>
-
-        <div className="app-content mx-auto max-w-[1480px] px-5 pb-10 pt-3 md:px-6">
-          {view === 'monitor' ? <div className="monitor-home">
-            <div className="page-heading mb-3"><h1 className="font-display text-[24px] font-extrabold tracking-[-.8px] md:text-[26px]">Поиск публикаций</h1><p className="mt-0.5 text-[11px] text-[#75829a] md:text-[12px]">Найдите упоминания, новости и публикации в социальных сетях</p></div>
-
-            <form onSubmit={runSearch} className="search-query-card mb-2.5 rounded-xl border border-[#edf0f4] bg-white px-3.5 py-3 shadow-[0_3px_15px_rgba(39,57,86,.035)]">
-              <label htmlFor="query" className="mb-1 block text-[10px] font-bold text-[#283550]">Ваш запрос</label>
-              <div className="relative"><input id="query" value={query} onChange={e => setQuery(e.target.value)} placeholder="Введите тему, событие, человека или текст новости" className="query-input w-full rounded-lg border border-[#dce2eb] bg-white py-2.5 pl-2.5 pr-9 text-[11px] text-[#25314a] outline-none focus:border-[#9ba9c2] focus:ring-2 focus:ring-[#eff2f7]" /><button type="button" aria-label="Очистить запрос" onClick={() => setQuery('')} className="absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-0.5 text-[#a7afbd] hover:bg-[#f0f2f6]"><X size={15} /></button></div>
-              <div className="mt-2 flex flex-wrap items-center gap-1.5 text-[9px] text-[#7b879b]"><span className="mr-1">Например:</span>{['открытие школы', 'губернатор Красноярского края', 'наводнение 2024', 'скопировать текст новости'].map(example => <button type="button" key={example} onClick={() => setQuery(example)} className="rounded-full bg-[#f0f2f6] px-2 py-1 text-[#586781] transition hover:bg-[#e7ebf3]">{example}</button>)}</div>
-            </form>
-
-            <form onSubmit={runSearch} className="search-options mb-3 grid items-center gap-2 rounded-xl border border-[#edf0f4] bg-white p-2.5 shadow-[0_3px_15px_rgba(39,57,86,.035)] xl:grid-cols-[1.15fr_1.15fr_1fr_auto_auto]">
-              <label className="min-w-0"><span className="mb-1 block px-0.5 text-[9px] font-bold text-[#303c55]">Период публикации</span><span className="flex h-[32px] items-center gap-1.5 rounded-md border border-[#dce2eb] px-2"><input aria-label="Дата начала" type="date" value={periodStart} onChange={e => setPeriodStart(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[9px] text-[#4e5c74] outline-none" /><span className="text-[#9da7b7]">—</span><input aria-label="Дата окончания" type="date" value={periodEnd} onChange={e => setPeriodEnd(e.target.value)} className="min-w-0 flex-1 bg-transparent text-[9px] text-[#4e5c74] outline-none" /></span></label>
-              <div><div className="mb-1 px-0.5 text-[9px] font-bold text-[#303c55]">Регион</div><button type="button" className="flex h-[32px] w-full items-center gap-2 rounded-md border border-[#dce2eb] px-2 text-[9px] text-[#4e5c74]"><MapPin size={13} /> Красноярский край <ChevronDown size={12} className="ml-auto" /></button></div>
-              <div><div className="mb-1 flex items-center gap-1 px-0.5 text-[9px] font-bold text-[#303c55]">Источники <CircleAlert size={10} className="text-[#8d99ad]" /></div><button type="button" onClick={() => { setMode('selected'); setSourceModal(true) }} className="flex h-[32px] w-full items-center gap-2 rounded-md border border-[#dce2eb] px-2 text-[9px] text-[#4e5c74]"><Users size={13} /> Выбрано: {selectedIds.length} <ChevronDown size={12} className="ml-auto" /></button></div>
-              <button type="button" onClick={() => setMode(mode === 'selected' ? 'broad' : 'selected')} role="switch" aria-checked={mode === 'selected'} className="flex items-center gap-2 pt-3 text-left text-[8px] leading-[1.25] text-[#728099]"><span className={`toggle-track ${mode === 'selected' ? 'toggle-on' : ''}`}><span /></span>Искать только<br />в выбранных источниках</button>
-              <button type="submit" disabled={isSearching || !query.trim()} className="mt-3 flex h-[38px] items-center justify-center gap-2 rounded-lg bg-[#e51d3b] px-3.5 text-[10px] font-bold text-white shadow-[0_4px_12px_rgba(229,29,59,.16)] transition hover:bg-[#cf1834] disabled:opacity-60"><Search size={16} /> Найти публикации</button>
-            </form>
-
-            <div className="results-layout grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_168px]">
-            <section className="panel monitor-results overflow-hidden">
-              <div className="results-toolbar flex flex-wrap items-center justify-between gap-2 border-b border-[#edf0f4] px-3 py-2.5 md:px-4">
-                <div className="flex items-baseline gap-2"><h2 className="font-display text-[13px] font-extrabold tracking-[-.2px] text-[#263552]">Найдено <span className="text-[#e51d3b]">{isSearching ? '…' : visibleResults.length}</span> публикаций</h2><span className="hidden text-[8px] text-[#8590a3] sm:inline">за 2 мин 14 сек · демо</span>{isSearching && <span className="flex items-center gap-1 text-[9px] font-bold text-[#aa782c]"><LoaderCircle size={11} className="animate-spin" /> Идёт поиск</span>}</div>
-                <div className="flex items-center gap-2"><label className="hidden items-center gap-1 text-[8px] text-[#7e899d] sm:flex">Сортировка: <select value={sortOrder} onChange={e => setSortOrder(e.target.value as 'relevance' | 'newest')} className="rounded-md border border-[#e5e9ef] bg-white px-2 py-1 text-[8px] font-medium text-[#53617b] outline-none"><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select></label><button onClick={exportXlsx} disabled={isSearching} className="flex items-center gap-1 rounded-md border border-[#e1e6ed] bg-white px-2.5 py-1.5 text-[9px] font-semibold text-[#596984] transition hover:bg-[#f3f5f8] disabled:opacity-50"><Download size={12} /> XLSX</button></div>
-              </div>
-              {notice && <div className="mx-5 mt-3 flex items-center gap-2 rounded-lg bg-[#edf5ed] px-3 py-2 text-[10px] font-medium text-[#47704e]"><Check size={13} />{notice}</div>}
-              {isSearching ? <div className="flex min-h-[310px] flex-col items-center justify-center px-6 text-center"><div className="mb-4 grid size-12 place-items-center rounded-2xl bg-[#edf4ed] text-[#4f7b59]"><LoaderCircle size={23} className="animate-spin" /></div><div className="text-[13px] font-semibold text-[#455349]">Проверяем источники</div><p className="mt-1 max-w-[290px] text-[11px] leading-5 text-[#929c94]">Ищем публикации по смыслу и собираем отдельные размещения</p><div className="mt-4 h-1 w-44 overflow-hidden rounded-full bg-[#edf0ec]"><div className="h-full w-2/3 animate-pulse rounded-full bg-[#78a481]" /></div></div> : !hasSearched || visibleResults.length === 0 ? <div className="flex min-h-[300px] flex-col items-center justify-center px-6 text-center"><div className="mb-3 grid size-11 place-items-center rounded-2xl bg-[#f1f3f0] text-[#87938a]"><Search size={20} /></div><div className="text-[13px] font-semibold text-[#47534a]">Подходящих публикаций не найдено</div><p className="mt-1 max-w-[320px] text-[11px] leading-5 text-[#929c94]">Измените запрос, период или выберите другие площадки, затем повторите поиск.</p></div> : <div>
-                <div>{visibleResults.map((result, index) => <article key={result.id} className="publication-card group grid gap-2.5 border-b border-[#edf0f4] p-2.5 transition hover:bg-[#fbfcfe] sm:grid-cols-[116px_minmax(0,1fr)]">
-                  <div className={`publication-thumb thumb-${index % 5}`} aria-label="Иллюстрация к публикации"><span className={`platform-badge ${result.platform.toLowerCase()}`}>{result.platform === 'OK' ? '✦' : result.platform === 'MAX' ? '●' : 'ᴠκ'}</span>{index === 2 && <span className="thumb-play">▶</span>}</div>
-                  <div className="min-w-0 py-0.5"><div className="mb-1 flex items-start justify-between gap-2"><a href={result.url} target="_blank" rel="noreferrer" className="publication-title group-hover:text-[#dd1f3b]">{result.title}</a><a href={result.url} target="_blank" rel="noreferrer" aria-label="Открыть публикацию" className="shrink-0 text-[#8390a6] hover:text-[#e51d3b]"><ExternalLink size={13} /></a></div><p className="line-clamp-2 text-[9px] leading-[1.45] text-[#7e8aa0]">{result.excerpt}</p><div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[8px] text-[#61708a]"><span className="flex items-center gap-1 font-medium"><Users size={10} />{result.source}</span><span className="text-[#b2bac7]">{result.date}</span><span className="rounded-full bg-[#f0f2f6] px-1.5 py-0.5 text-[#68758b]">#Красноярск</span><span className="rounded-full bg-[#f0f2f6] px-1.5 py-0.5 text-[#68758b]">#{index === 2 ? 'тренировка' : 'ледовыйдворец'}</span></div><div className="mt-1.5 flex items-center gap-3 text-[8px] text-[#7e8aa0]"><span className="inline-flex items-center gap-1"><Heart size={11} />{[1200, 980, 756, 540, 432][index]}</span><span className="inline-flex items-center gap-1"><MessageCircle size={11} />{[86, 42, 31, 28, 19][index]}</span><span className="inline-flex items-center gap-1"><Share2 size={11} />{[124, 67, 54, 21, 16][index]}</span><span className={`ml-auto rounded-full px-1.5 py-0.5 font-semibold ${result.kind === 'По теме' ? 'bg-[#fff0f2] text-[#d92b45]' : 'bg-[#f1f3f6] text-[#77839a]'}`}>{result.kind}</span></div></div>
-                </article>)}</div>
-                <div className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5"><div className="text-[9px] text-[#8792a5]">Показано <span className="font-bold text-[#4c5a74]">{visibleResults.length}</span> из <span className="font-bold text-[#4c5a74]">{visibleResults.length}</span> публикаций <span className="ml-1 text-[#b1b8b2]">· демо-данные</span></div><div className="flex items-center gap-1"><button onClick={() => setPage(Math.max(1, page - 1))} aria-label="Предыдущая страница" className="page-button"><ChevronLeft size={13} /></button><button className="page-button page-current">{page}</button><button onClick={() => setPage(page + 1)} aria-label="Следующая страница" className="page-button"><ChevronRight size={13} /></button></div></div>
-              </div>}
-              <div className="flex items-start gap-2 border-t border-[#edf0f4] bg-[#fcfcfd] px-3 py-2 text-[8px] leading-4 text-[#8b95a6]"><CircleAlert size={12} className="mt-0.5 shrink-0 text-[#9eaa9e]" /><span>Публикации показаны как демонстрационный пример. Живой поиск подключается к серверу и источникам данных.</span></div>
-            </section>
-            <aside className="filters-sidebar hidden space-y-2 lg:block">
-              <section className="rounded-xl border border-[#edf0f4] bg-white p-3 shadow-[0_3px_15px_rgba(39,57,86,.035)]"><div className="mb-2 flex items-center justify-between"><h3 className="text-[10px] font-extrabold text-[#293651]">Источники</h3><button onClick={() => setSourceModal(true)} className="text-[8px] font-medium text-[#e51d3b]">Изменить</button></div>{(['VK', 'OK', 'MAX'] as Platform[]).map(platform => <label key={platform} className="flex cursor-pointer items-center gap-2 py-1 text-[8px] text-[#53617a]"><input type="checkbox" checked={platforms.includes(platform)} onChange={() => togglePlatform(platform)} className="accent-[#e51d3b]" /><span className={`source-platform-mark ${platform.toLowerCase()}`}>{platform === 'OK' ? '✦' : platform === 'MAX' ? '●' : 'ᴠκ'}</span><span className="truncate">{platform === 'VK' ? 'ВКонтакте' : platform === 'OK' ? 'Одноклассники' : 'MAX'}</span><span className="ml-auto text-[#9aa4b4]">{sources.filter(source => source.platform === platform).length}</span></label>)}<div className="mt-1 border-t border-[#eff1f5] pt-2 text-[8px] text-[#68758c]"><Users size={11} className="mr-1 inline" />Другие источники <span className="float-right text-[#9aa4b4]">0</span></div></section>
-              <section className="rounded-xl border border-[#edf0f4] bg-white p-3 shadow-[0_3px_15px_rgba(39,57,86,.035)]"><h3 className="mb-2 text-[10px] font-extrabold text-[#293651]">Тип совпадения</h3>{[['Все публикации', visibleResults.length], ['По теме', results.filter(item => item.kind === 'По теме').length], ['Связано', results.filter(item => item.kind === 'Связано').length]].map(([label, count]) => <label key={label} className="flex cursor-pointer items-center gap-1.5 py-1 text-[8px] text-[#53617a]"><input type="radio" name="result-kind" checked={filter === label} onChange={() => setFilter(String(label))} className="accent-[#e51d3b]" /><span>{label}</span><span className="ml-auto text-[#9aa4b4]">{count}</span></label>)}</section>
-              <section className="rounded-xl border border-[#edf0f4] bg-white p-3 shadow-[0_3px_15px_rgba(39,57,86,.035)]"><h3 className="mb-2 text-[10px] font-extrabold text-[#293651]">Ключевые темы</h3>{[['Открытие', 4], ['Ледовый дворец', 5], ['Красноярск', 5], ['Спорт', 3], ['Инфраструктура', 2]].map(([topic, count]) => <button key={topic} onClick={() => setQuery(String(topic))} className="topic-filter flex w-full items-center justify-between border-b border-[#f0f2f6] py-1.5 text-left text-[8px] text-[#53617a] last:border-0 hover:text-[#e51d3b]"><span>{topic}<i /></span><span className="text-[#9aa4b4]">{count}</span></button>)}</section>
-            </aside>
+        <div className="search-tags"><span>Например:</span>{exampleTopics.map(topic => <button type="button" key={topic} onClick={() => setQuery(topic)}>{topic}</button>)}</div>
+      </form>
+      <div className="parameters-card">
+        <div className="filters-card">
+          <div className="filter-block">
+            <span className="filter-label">Период публикации</span>
+            <div className="period-box">
+              <CalendarDays size={17}/>
+              <input type="date" value={periodStart} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
+              <span className="period-dash">—</span>
+              <input type="date" value={periodEnd} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
+              <ChevronDown size={15}/>
             </div>
-          </div> : <>
-            <div className="mb-7 flex flex-wrap items-end justify-between gap-4"><div><div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[1.7px] text-[#8b978d]"><Users size={13} /> Справочник</div><h1 className="font-display text-[27px] font-bold tracking-[-1.15px] md:text-[32px]">Источники публикаций</h1><p className="mt-1.5 text-[12px] text-[#8a948d]">Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={() => setSourceModal(true)} className="flex items-center gap-2 rounded-lg bg-[#204b39] px-4 py-2.5 text-[11px] font-semibold text-white hover:bg-[#173b2d]"><Plus size={15} /> Добавить источник</button></div>
-            <div className="panel overflow-hidden"><div className="flex items-center justify-between border-b border-[#edf0ed] px-5 py-4 md:px-6"><div><h2 className="font-display text-[14px] font-bold">Мой список</h2><p className="mt-1 text-[10px] text-[#98a199]">{sources.length} источника · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => setSelectedIds(sources.map(s => s.id))} className="text-[10px] font-semibold text-[#57745e]">Выбрать все</button></div><div>{sources.map(source => <div key={source.id} className="flex flex-wrap items-center gap-3 border-b border-[#f0f2ef] px-5 py-4 last:border-0 md:px-6"><button onClick={() => toggleSource(source.id)} aria-label={`Выбрать ${source.name}`} className={`grid size-[18px] shrink-0 place-items-center rounded border ${selectedIds.includes(source.id) ? 'border-[#527b5b] bg-[#527b5b] text-white' : 'border-[#d7ded7] bg-white text-transparent'}`}><Check size={12} /></button><div style={{ backgroundColor: `${source.color}18`, color: source.color }} className="grid size-9 shrink-0 place-items-center rounded-[11px] text-[12px] font-bold">{source.initials}</div><div className="min-w-[130px] flex-1"><div className="text-[11px] font-semibold text-[#455148]">{source.name}</div><a href={`https://${source.url}`} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-[9px] text-[#98a39a] hover:text-[#55765c]">{source.url} <ExternalLink size={9} /></a></div><span className={`rounded px-2 py-1 text-[9px] font-bold ${platformStyle[source.platform]}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="hidden w-20 text-right text-[10px] text-[#7d8980] sm:block">{source.followers}</span><span className="flex items-center gap-1.5 text-[9px] font-medium text-[#699371]"><span className="size-1.5 rounded-full bg-[#79a984]" /> Доступен</span><button onClick={() => { setSources(list => list.filter(s => s.id !== source.id)); setSelectedIds(ids => ids.filter(id => id !== source.id)) }} aria-label={`Удалить ${source.name}`} className="ml-1 rounded-md p-2 text-[#b0b8b1] hover:bg-[#fff0ee] hover:text-[#bd6555]"><Trash2 size={14} /></button></div>)}</div><div className="bg-[#fafbf9] px-5 py-3 text-[10px] text-[#929c94] md:px-6">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div></div>
-          </>}
-          <footer className="mt-7 flex flex-wrap items-center justify-between gap-2 text-[9px] text-[#abb3ac]"><span>Медиаслед · Красноярский край</span><span className="flex items-center gap-1.5"><span className="size-1.5 rounded-full bg-[#83a98a]" /> Демо-версия интерфейса</span></footer>
+          </div>
+          <div className="filter-block">
+            <span className="filter-label">Регион</span>
+            <div className="region-box">
+              <MapPin size={17}/>
+              <select value={region} onChange={event => setRegion(event.target.value)} aria-label="Регион">
+                <option>Красноярский край</option><option>Красноярск</option><option>Ачинск</option><option>Норильск</option>
+              </select>
+              <ChevronDown size={16}/>
+            </div>
+          </div>
         </div>
-      </main>
-
-      {sourceModal && <div className="fixed inset-0 z-40 grid place-items-center bg-[#18221b]/35 p-4 backdrop-blur-[2px]" onMouseDown={e => { if (e.target === e.currentTarget) setSourceModal(false) }}><div className="w-full max-w-[440px] rounded-2xl border border-[#eaeeea] bg-white p-6 shadow-[0_20px_70px_rgba(25,49,32,.18)]"><div className="mb-5 flex items-start justify-between"><div><div className="mb-1 grid size-9 place-items-center rounded-xl bg-[#edf4ed] text-[#587d60]"><Plus size={17} /></div><h3 className="mt-3 font-display text-[17px] font-bold">Новый источник</h3><p className="mt-1 text-[10px] text-[#909a92]">Добавьте публичное сообщество или канал</p></div><button onClick={() => setSourceModal(false)} aria-label="Закрыть" className="rounded-lg p-2 text-[#98a29a] hover:bg-[#f3f5f2]"><X size={16} /></button></div><form onSubmit={addSource} className="space-y-4"><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Название источника</span><input required value={newSourceName} onChange={e => setNewSourceName(e.target.value)} placeholder="Например, Новости района" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Ссылка на сообщество</span><input required value={newSourceUrl} onChange={e => setNewSourceUrl(e.target.value)} placeholder="https://vk.com/community" className="form-input" /></label><label className="block"><span className="mb-1.5 block text-[10px] font-semibold text-[#58645b]">Площадка</span><select value={newSourcePlatform} onChange={e => setNewSourcePlatform(e.target.value as Platform)} className="form-input"><option value="VK">ВКонтакте</option><option value="OK">Одноклассники</option><option value="MAX">MAX</option></select></label><div className="flex justify-end gap-2 border-t border-[#eef0ed] pt-4"><button type="button" onClick={() => setSourceModal(false)} className="rounded-lg px-4 py-2.5 text-[10px] font-semibold text-[#7b867e] hover:bg-[#f5f6f4]">Отмена</button><button className="rounded-lg bg-[#204b39] px-4 py-2.5 text-[10px] font-semibold text-white hover:bg-[#173b2d]">Добавить источник</button></div></form></div></div>}
+        <div className="sources-card">
+          <div className="sources-left">
+            <h3>Источники поиска</h3>
+            <div className="scope-row">
+              <label className="radio"><input type="radio" name="search-scope" checked={scope === 'all'} onChange={() => setScope('all')}/><i/><span>Все источники</span></label>
+              <label className="radio"><input type="radio" name="search-scope" checked={scope === 'selected'} onChange={() => setScope('selected')}/><i/><span>Только выбранные</span></label>
+            </div>
+            <div className="mini-toggle"><Switch checked={officialOnly} onChange={() => setOfficialOnly(!officialOnly)} blue label="Только официальные источники"/><span>Только официальные источники</span></div>
+            <h3 className="extra-heading">Дополнительные настройки</h3>
+            <div className="mini-toggle"><Switch checked={withMedia} onChange={() => setWithMedia(!withMedia)} blue label="Только с медиа"/><span>Только с медиа (фото, видео)</span></div>
+            <div className="mini-toggle"><Switch checked={excludeReposts} onChange={() => setExcludeReposts(!excludeReposts)} blue label="Исключить репосты"/><span>Исключить репосты</span></div>
+          </div>
+          <div className="sources-right">
+            <div className="tiles-panel">
+              {(['VK', 'OK', 'MAX'] as Platform[]).map(item => <div className="ptile" key={item}>
+                <PlatformBadge platform={item}/>
+                <span className="ptile-name">{platformLabel[item]}</span>
+                <Switch checked={platforms.includes(item)} onChange={() => togglePlatform(item)} blue large label={`Искать в ${platformLabel[item]}`}/>
+              </div>)}
+            </div>
+            <button type="button" className="adv-link">Расширенные настройки <ArrowRight size={15}/></button>
+          </div>
+        </div>
+      </div>
     </div>
-  )
+    <aside className="hero-pane">
+      <div className="hero-overlay">
+        <h2>Красноярский край<br/>в медиапространстве</h2>
+        <p>Быстрый и удобный поиск публикаций в социальных сетях по событиям, темам и ключевым словам.</p>
+        <div className="hero-stats">
+          {([['VK', '12 450'], ['OK', '5 230'], ['MAX', '1 980']] as [Platform, string][]).map(([platform, count]) => <div className="hero-stat" key={platform}>
+            <span className="hero-pl"><PlatformBadge platform={platform} size={26}/>{platformLabel[platform]}</span>
+            <strong>{count}</strong>
+          </div>)}
+        </div>
+      </div>
+    </aside>
+  </div>
+}
+function Toggle({ checked, onChange, title, description }: { checked: boolean; onChange: () => void; title: string; description: string }) { return <div className="toggle-row"><div><b>{title}</b><span>{description}</span></div><button type="button" className={`switch ${checked ? 'switch-on' : ''}`} onClick={onChange} role="switch" aria-checked={checked}><i/></button></div> }
+
+function ResultsPage({ results, query, periodStart, periodEnd, onExport, onSearch, onOpen }: { results: Publication[]; query: string; periodStart: string; periodEnd: string; onExport: () => void; onSearch: () => void; onOpen: (item: Publication) => void }) {
+  const [resultPage, setResultPage] = useState(1)
+  const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
+  const [savedResult, setSavedResult] = useState(false)
+  const [selected, setSelected] = useState<number[]>([])
+  const shown = sort === 'newest' ? [...results].reverse() : results
+  const pageSize = 4
+  const pageItems = shown.slice((resultPage - 1) * pageSize, resultPage * pageSize)
+  const pages = Math.max(1, Math.ceil(shown.length / pageSize))
+  const prettyDate = (value: string) => value.split('-').reverse().join('.')
+  const toggle = (id: number) => setSelected(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  return <div className="design-page results-page">
+    <div className="design-page-heading"><div><button onClick={onSearch} className="back-link"><ArrowLeft size={13}/>К поиску</button><h1>Результаты поиска</h1><p>Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action"><Download size={14}/>Выгрузить в Excel</button></div></div>
+    <div className="results-summary-bar"><div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div><div className="summary-filter"><MapPin size={15}/><span>Красноярский край</span><ChevronDown size={13}/></div><button onClick={onSearch} className="summary-edit">Изменить параметры <ArrowRight size={12}/></button></div>
+    <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select><ChevronDown size={12}/></label></div>
+      <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className="result-photo publication-thumb has-image"><img className="media-photo" src={item.image} alt=""/><span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span><span className="result-topic">#Красноярск</span><span className="result-topic">#ледовыйдворец</span></div><div className="result-engagement"><span><Heart size={13}/>{[1200,980,756,540,432][item.id-1]}</span><span><MessageCircle size={13}/>{[86,42,31,28,19][item.id-1]}</span><span><Share2 size={13}/>{[124,67,54,21,16][item.id-1]}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
+      <div className="results-pagination"><span>Показано <b>{pageItems.length}</b> из <b>{results.length}</b> публикаций <i>· демонстрационная выборка</i></span><div><button onClick={() => setResultPage(current => Math.max(1,current-1))} disabled={resultPage <= 1}><ChevronLeft size={15}/></button><button className="pagination-current">{resultPage}</button><button onClick={() => setResultPage(current => Math.min(pages,current+1))} disabled={resultPage >= pages}><ChevronRight size={15}/></button></div></div>
+    </section>
+  </div>
+}
+
+function PublicationPage({ item, onBack }: { item: Publication; onBack: () => void }) {
+  const [liked, setLiked] = useState(false)
+  const likes = [1200, 980, 756, 540, 432][item.id - 1] ?? 0
+  const comments = [86, 42, 31, 28, 19][item.id - 1] ?? 0
+  const shares = [124, 67, 54, 21, 16][item.id - 1] ?? 0
+
+  return <div className="publication-page">
+    <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+    <div className="publication-layout">
+      <article className="publication-card">
+        <header className="publication-header">
+          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{item.source.slice(0, 1)}</div>
+          <div><strong>{item.source}</strong><span>{item.date}</span></div>
+          <span className={`publication-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span>
+        </header>
+        <img className="publication-cover" src={item.image} alt={item.title}/>
+        <div className="publication-content">
+          <span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span>
+          <h1>{item.title}</h1>
+          <p>{item.excerpt.replace(/…$/, '.')}</p>
+          <p>Материал найден системой медиамониторинга по выбранной теме. В публикации рассказывается о событии, его участниках и значении для жителей Красноярского края.</p>
+          <div className="publication-tags"><span>#Красноярск</span><span>#ледовыйдворец</span><span>#спорт</span></div>
+        </div>
+        <footer className="publication-actions">
+          <button type="button" className={liked ? 'liked' : ''} onClick={() => setLiked(!liked)}><Heart size={16} fill={liked ? 'currentColor' : 'none'}/>{likes + (liked ? 1 : 0)}</button>
+          <span><MessageCircle size={16}/>{comments}</span><span><Share2 size={16}/>{shares}</span>
+          <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
+        </footer>
+      </article>
+      <aside className="publication-info">
+        <h2>О публикации</h2>
+        <dl><div><dt>Источник</dt><dd>{item.source}</dd></div><div><dt>Площадка</dt><dd>{platformLabel[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.date}</dd></div><div><dt>Соответствие запросу</dt><dd>{item.kind}</dd></div></dl>
+        <button type="button"><Bookmark size={15}/>Сохранить публикацию</button>
+      </aside>
+    </div>
+  </div>
+}
+
+function AnalyticsPage() {
+  const [range, setRange] = useState('01.03.2024 — 31.03.2024')
+  const [platform, setPlatform] = useState<'Все' | Platform>('Все')
+  const series = [
+    { name: 'ВКонтакте', value: 'VK' as const, color: '#668bfa', points: '0,122 40,115 80,104 120,112 160,93 200,98 240,77 280,88 320,55 360,69 400,50 440,64 480,39 520,50 560,32 600,43' },
+    { name: 'Одноклассники', value: 'OK' as const, color: '#f59a35', points: '0,145 40,139 80,132 120,136 160,126 200,130 240,115 280,121 320,107 360,111 400,93 440,105 480,84 520,91 560,75 600,80' },
+    { name: 'MAX', value: 'MAX' as const, color: '#db477a', points: '0,158 40,153 80,150 120,143 160,147 200,135 240,139 280,126 320,130 360,117 400,122 440,105 480,114 520,96 560,100 600,86' },
+  ]
+  return <div className="design-page analytics-page"><div className="design-page-heading"><div><h1>Аналитика</h1><p>Обзор найденных публикаций и активности по теме</p></div><label className="analytics-date"><CalendarDays size={14}/><select value={range} onChange={event => setRange(event.target.value)}><option>01.03.2024 — 31.03.2024</option><option>01.02.2024 — 29.02.2024</option><option>01.01.2024 — 31.01.2024</option></select><ChevronDown size={12}/></label></div><div className="analytics-demo-note"><CircleAlert size={13}/>Демонстрационные данные за выбранный период</div>
+    <div className="analytics-stats"><div className="analytics-stat total"><span>Всего публикаций</span><div>248 <small>шт.</small></div><em><TrendingUp size={12}/>+12% к прошлому периоду</em></div><div className="analytics-stat"><span><i className="analytics-platform vk">ᴠκ</i>ВКонтакте</span><div>124</div><em><ArrowUpRight size={12}/>+8%</em></div><div className="analytics-stat"><span><i className="analytics-platform ok">✦</i>Одноклассники</span><div>86</div><em><ArrowUpRight size={12}/>+15%</em></div><div className="analytics-stat"><span><i className="analytics-platform max">●</i>MAX</span><div>38</div><em><ArrowUpRight size={12}/>+6%</em></div></div>
+    <div className="analytics-grid"><section className="design-card trend-card"><div className="design-card-heading"><div><h2>Динамика публикаций</h2><p>Количество публикаций по дням</p></div><div className="chart-legend"><button onClick={() => setPlatform('Все')} className={platform === 'Все' ? 'legend-active' : ''}><i style={{background:'#33415d'}}/>Все</button>{series.map(item => <button key={item.name} onClick={() => setPlatform(item.value)} className={platform === item.value ? 'legend-active' : ''}><i style={{background:item.color}}/>{item.name}</button>)}</div></div><div className="chart-wrap"><div className="chart-y-labels"><span>80</span><span>60</span><span>40</span><span>20</span><span>0</span></div><svg className="trend-chart" viewBox="0 0 600 180" role="img" aria-label="Динамика публикаций"><g className="chart-grid">{[20,55,90,125,160].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y}/>)}</g>{series.filter(item => platform === 'Все' || item.value === platform).map(item => <polyline key={item.name} points={item.points} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>)}</svg></div><div className="chart-x-labels"><span>1 мар</span><span>6 мар</span><span>11 мар</span><span>16 мар</span><span>21 мар</span><span>26 мар</span><span>31 мар</span></div><div className="chart-footnote"><span><span className="live-dot"/>Пик активности</span><b>17 марта · 48 публикаций</b></div></section>
+      <section className="design-card topics-card"><div className="design-card-heading"><div><h2>Типы контента</h2><p>Распределение публикаций</p></div></div><div className="donut-area"><div className="donut-chart"><div><b>248</b><span>публикаций</span></div></div><div className="donut-legend"><span><i className="donut-posts"/>Посты <b>42%</b></span><span><i className="donut-repost"/>Репосты <b>18%</b></span><span><i className="donut-video"/>Видео <b>13%</b></span><span><i className="donut-photo"/>Фото <b>24%</b></span><span><i className="donut-comments"/>Комментарии <b>3%</b></span></div></div><div className="topic-divider"/><h3>Популярные темы</h3><div className="analytics-topics">{([['Ледовый дворец',68],['Открытие',51],['Красноярск',43],['Спорт',35]] as [string,number][]).map(([name,count]) => <div key={name}><span>{name}</span><div><i style={{width:`${count/68*100}%`}}/></div><b>{count}</b></div>)}</div></section></div>
+    <div className="analytics-footer"><span>Показатели рассчитаны по результатам поиска</span><button><ArrowDownRight size={13}/>Скачать отчёт</button></div>
+  </div>
+}
+
+function SourcesPage({ sources, onAdd, onEdit, onToggle, onDelete }: { sources: Source[]; onAdd: () => void; onEdit: (source: Source) => void; onToggle: (id: number) => void; onDelete: (id: number) => void }) {
+  return <section className="repository-sources"><div className="repository-source-heading"><div><div className="repository-kicker"><Users size={13}/>Справочник</div><h1>Источники публикаций</h1><p>Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={onAdd}><Plus size={15}/>Добавить источник</button></div>
+    <div className="panel repository-source-list"><div className="repository-source-list-head"><div><h2>Мой список</h2><p>{sources.length} источников · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => sources.filter(item => !item.active).forEach(item => onToggle(item.id))}>Выбрать все</button></div>
+      <div>{sources.map(source => <div key={source.id} className="repository-source-row"><button onClick={() => onToggle(source.id)} aria-label={`Выбрать ${source.name}`} className={`repository-check ${source.active ? 'checked' : ''}`}><Check size={12}/></button><button onClick={() => onEdit(source)} style={{backgroundColor:`${source.color}18`,color:source.color}} className="repository-source-avatar">{source.name.slice(0,1)}</button><div className="repository-source-copy"><button onClick={() => onEdit(source)}>{source.name}</button><a href={`https://${source.url}`} target="_blank" rel="noreferrer">{source.url}<ExternalLink size={9}/></a></div><span className={`repository-platform ${source.platform.toLowerCase()}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="repository-followers">{source.followers}</span><span className={`repository-status ${source.active ? '' : 'offline'}`}><i/>{source.active ? 'Доступен' : 'Отключён'}</span><button onClick={() => onDelete(source.id)} className="repository-delete" aria-label={`Удалить ${source.name}`}>×</button></div>)}</div>
+      <div className="repository-source-note">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div>
+    </div>
+  </section>
+}
+
+function SavedPage({ items, onOpen, onRemove, onNew, onFavorite }: { items: SavedQuery[]; onOpen: (item: SavedQuery) => void; onRemove: (id: number) => void; onNew: () => void; onFavorite: (id: number) => void }) {
+  return <section className="saved-shell">
+    <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>Быстрый доступ к часто используемым темам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
+    <div className="saved-table-wrap"><table className="saved-queries-table"><thead><tr><th><input type="checkbox" aria-label="Выбрать все запросы"/></th><th>Название</th><th>Запрос</th><th>Период</th><th>Регион</th><th>Действия</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><button className={`favorite-star ${item.favorite ? 'favorite-on' : ''}`} title={item.favorite ? 'Убрать из избранного' : 'Добавить в избранное'} onClick={() => onFavorite(item.id)}><Star size={15} fill={item.favorite ? 'currentColor' : 'none'}/></button></td><td><button className="saved-query-name" onClick={() => onOpen(item)}>{item.name}</button></td><td><span className="saved-query-text">{item.query}</span></td><td>{item.period}</td><td>{item.region}</td><td><details className="saved-actions"><summary aria-label="Действия с запросом"><MoreHorizontal size={17}/></summary><div><button onClick={() => onOpen(item)}>Открыть запрос</button><button onClick={() => onFavorite(item.id)}>{item.favorite ? 'Убрать из избранного' : 'В избранное'}</button><button className="danger-action" onClick={() => onRemove(item.id)}>Удалить</button></div></details></td></tr>)}</tbody></table>{items.length === 0 && <div className="empty-state">Пока нет сохранённых запросов</div>}</div>
+  </section>
+}
+
+function SettingsPage({ tab, setTab, region, setRegion, onSave, saved }: { tab: string; setTab: (v: string) => void; region: string; setRegion: (v: string) => void; onSave: () => void; saved: boolean }) {
+  const tabs = ['Основные', 'Уведомления', 'Экспорт', 'Интерфейс']
+  const [verify, setVerify] = useState(true)
+  const [emailNotices, setEmailNotices] = useState(true)
+  const [newMentions, setNewMentions] = useState(true)
+  const [weeklyReport, setWeeklyReport] = useState(false)
+  return <section className="settings-shell">
+    <header className="settings-page-head">
+      <h1>Настройки</h1>
+      <p>Основные параметры работы приложения</p>
+    </header>
+    <div className="settings-tabs">{tabs.map(item => <button key={item} onClick={() => setTab(item)} className={tab === item ? 'settings-tab-active' : ''}>{item}</button>)}</div>
+    <div className="settings-body">
+      {tab === 'Основные' && <div className="settings-form">
+        <div className="settings-row settings-region-row">
+          <strong>Регион поиска</strong>
+          <label className="settings-select"><MapPin size={15}/><select value={region} onChange={event => setRegion(event.target.value)}><option>Красноярский край</option><option>Красноярск</option><option>Ачинск</option><option>Норильск</option></select></label>
+          <p>Основной регион для поиска публикаций</p>
+        </div>
+        <div className="settings-row">
+          <strong>Проверка ссылок</strong>
+          <div className="settings-option"><Toggle checked={verify} onChange={() => setVerify(!verify)} title="Автоматически проверять ссылку на доступность" description="Система будет проверять, что ссылка ведёт на существующую публикацию"/></div>
+        </div>
+        <div className="settings-row">
+          <strong>Уведомления</strong>
+          <div className="settings-option settings-notifications"><Toggle checked={newMentions} onChange={() => setNewMentions(!newMentions)} title="Уведомлять о завершении поиска" description=""/><Toggle checked={emailNotices} onChange={() => setEmailNotices(!emailNotices)} title="Уведомлять о недоступных публикациях" description=""/></div>
+        </div>
+      </div>}
+      {tab === 'Уведомления' && <div className="settings-form"><div className="settings-row"><strong>Уведомления</strong><div className="settings-option settings-notifications"><Toggle checked={emailNotices} onChange={() => setEmailNotices(!emailNotices)} title="Уведомления на электронную почту" description="Важные обновления и системные сообщения"/><Toggle checked={newMentions} onChange={() => setNewMentions(!newMentions)} title="Новые упоминания" description="Сообщать о новых публикациях по активным запросам"/><Toggle checked={weeklyReport} onChange={() => setWeeklyReport(!weeklyReport)} title="Еженедельный отчёт" description="Сводка по активности и динамике упоминаний"/></div></div></div>}
+      {tab === 'Экспорт' && <div className="settings-form"><div className="settings-row"><strong>Экспорт данных</strong><div className="settings-option settings-fields"><label>Формат по умолчанию<select><option>Excel (.xlsx)</option><option>CSV (.csv)</option><option>PDF (.pdf)</option></select></label><label>Кодировка CSV<select><option>UTF-8</option><option>Windows-1251</option></select></label><Toggle checked title="Включать ссылки на оригинал" description="Добавлять прямую ссылку на каждую публикацию" onChange={() => {}}/></div></div></div>}
+      {tab === 'Интерфейс' && <div className="settings-form"><div className="settings-row"><strong>Интерфейс</strong><div className="settings-option settings-fields"><label>Плотность таблиц<select><option>Стандартная</option><option>Компактная</option><option>Свободная</option></select></label><label>Язык интерфейса<select><option>Русский</option><option>English</option></select></label></div></div></div>}
+    </div>
+    <footer className="settings-footer"><button className="button-primary" onClick={onSave}>{saved ? <><Check size={15}/>Сохранено</> : 'Сохранить изменения'}</button></footer>
+  </section>
 }
 
 export default App
