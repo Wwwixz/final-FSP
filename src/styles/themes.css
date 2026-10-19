@@ -257,14 +257,11 @@ html[data-theme='light'] .nav-active:hover{
 html[data-theme='light'] .nav-user-actions{
   border-left-color:#e2e8ef;
 }
-html[data-theme='light'] .nav-bell{
+html[data-theme='light'] .nav-theme-toggle{
   color:#526078;
 }
-html[data-theme='light'] .nav-bell:hover{
+html[data-theme='light'] .nav-theme-toggle:hover{
   background:#eef3f7;
-}
-html[data-theme='light'] .nav-bell i{
-  border-color:#fff;
 }
 html[data-theme='light'] .nav-profile{
   color:#25334f;
@@ -339,7 +336,7 @@ html[data-theme='dark'] .auth-check.auth-check-on.auth-check-outline{border-colo
 .results-loading span svg{animation:api-search-pulse 1s ease-in-out infinite}
 @keyframes api-search-pulse{50%{transform:scale(1.15);opacity:.55}}
 
-/* Winter video is the background of the dark theme only. */
+/* Theme-specific winter video backgrounds. */
 .app-shell>.theme-background-video,
 .auth-screen>.theme-background-video{display:none}
 html[data-theme='dark'] .app-shell>.theme-background-video,
@@ -357,4 +354,46 @@ html[data-theme='light'] .app-shell>.main-area{background-color:rgba(225,236,244
   html[data-theme='dark'] .auth-screen>.theme-background-video,
   html[data-theme='light'] .app-shell>.theme-background-video,
   html[data-theme='light'] .auth-screen>.theme-background-video{display:none}
+}
+
+/* Refined background treatment: one motion layer and a calm readability veil. */
+.app-shell[data-city-background]>.theme-background-video,
+.auth-screen[data-city-background]>.theme-background-video{
+  background:#dce8f0;
+  transform:translateZ(0);
+}
+.app-shell[data-city-background='day']>.theme-background-video,
+.auth-screen[data-city-background='day']>.theme-background-video{
+  object-position:center 48%;
+  filter:saturate(.9) contrast(1.03) brightness(.98);
+}
+.app-shell[data-city-background='evening']>.theme-background-video,
+.auth-screen[data-city-background='evening']>.theme-background-video{
+  object-position:center 46%;
+  filter:saturate(.86) contrast(1.06) brightness(.78);
+}
+html[data-theme='light'] .app-shell>.main-area{
+  background-color:transparent;
+  background-image:linear-gradient(115deg,rgba(238,246,251,.82) 0%,rgba(232,242,248,.48) 48%,rgba(224,237,245,.26) 100%);
+}
+html[data-theme='dark'] .app-shell>.main-area{
+  background-color:transparent;
+  background-image:linear-gradient(115deg,rgba(7,20,38,.76) 0%,rgba(9,29,45,.5) 48%,rgba(5,19,34,.38) 100%);
+}
+html[data-theme='light'] .app-shell:has(.results-page)>.main-area{
+  background-image:linear-gradient(115deg,rgba(238,246,251,.82) 0%,rgba(232,242,248,.48) 48%,rgba(224,237,245,.26) 100%);
+}
+html[data-theme='dark'] .app-shell:has(.results-page)>.main-area{
+  background-image:linear-gradient(115deg,rgba(7,20,38,.76) 0%,rgba(9,29,45,.5) 48%,rgba(5,19,34,.38) 100%);
+}
+.app-shell:has(.results-page) .main-area::after{display:none}
+.auth-screen[data-city-background='day']:before{
+  background:linear-gradient(180deg,rgba(236,245,250,.28),rgba(220,234,243,.42));
+}
+.auth-screen[data-city-background='evening']:before{
+  background:linear-gradient(180deg,rgba(5,17,31,.48),rgba(5,16,29,.7));
+}
+@media(max-width:760px){
+  .app-shell[data-city-background='day']>.theme-background-video{object-position:58% center}
+  .app-shell[data-city-background='evening']>.theme-background-video{object-position:55% center}
 }

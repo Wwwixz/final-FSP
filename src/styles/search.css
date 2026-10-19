@@ -171,16 +171,15 @@ body:has(.sources-shell) .page-content,body:has(.saved-shell) .page-content,body
 @media(max-width:760px){.topbar{padding-right:12px;padding-left:12px}.topbar .top-actions{right:12px}.topbar .top-user{min-width:0}.topbar .top-user .avatar{width:36px;height:36px}.topbar .top-user>div:nth-child(2),.topbar .top-user>svg{display:none}body:has(.sources-shell) .page-content,body:has(.saved-shell) .page-content,body:has(.settings-shell) .page-content{min-height:calc(100vh - 121px)}}
 
 .nav-user-actions{display:flex;flex:none;align-items:center;gap:16px;margin-left:auto;padding-left:16px;border-left:1px solid #29405e}
-.nav-bell{position:relative;display:grid;width:36px;height:36px;place-items:center;border:0;border-radius:8px;background:transparent;color:#e4ebf5}
-.nav-bell:hover{background:#172d49}
-.nav-bell i{position:absolute;top:7px;right:7px;width:7px;height:7px;border:1px solid #0c1e39;border-radius:50%;background:#ff3453}
+.nav-theme-toggle{position:relative;display:grid;width:36px;height:36px;place-items:center;border:0;border-radius:8px;background:transparent;color:#e4ebf5}
+.nav-theme-toggle:hover{background:#172d49}
 .nav-profile{display:flex;min-width:190px;align-items:center;gap:10px;color:#fff}
 .nav-profile .avatar{width:38px;height:38px;background:#fde7eb;color:#df2943;font-size:11px}
 .nav-profile b,.nav-profile span{display:block}
 .nav-profile b{font-size:11px}.nav-profile span{margin-top:3px;color:#9fb0c5;font-size:9px}.nav-profile>svg{margin-left:auto;color:#9fb0c5}
 .landing-auth-actions{display:flex;align-items:center;gap:10px;margin-left:auto}.landing-auth-actions button{display:inline-flex;min-height:38px;align-items:center;justify-content:center;border-radius:8px;padding:0 18px;font:700 11px Manrope,sans-serif;cursor:pointer;transition:background .15s,border-color .15s,color .15s}.landing-login{border:1px solid #637790;background:transparent;color:#f2f6fb}.landing-login:hover{border-color:#fff;background:#ffffff12}.landing-register{border:1px solid #ef2443;background:#ef2443;color:#fff;box-shadow:0 5px 14px #ef24433b}.landing-register:hover{border-color:#d91c39;background:#d91c39}
 @media(max-width:1180px){.nav-user-actions{gap:8px;padding-left:8px}.nav-profile{min-width:auto}.nav-profile>div:nth-child(2),.nav-profile>svg{display:none}}
-@media(max-width:760px){.nav-user-actions{gap:2px;padding-left:4px}.nav-bell{width:32px}.nav-profile .avatar{width:34px;height:34px}.nav-profile{gap:0}.landing-auth-actions{gap:6px}.landing-auth-actions button{min-height:34px;padding:0 10px;font-size:9px}}
+@media(max-width:760px){.nav-user-actions{gap:2px;padding-left:4px}.nav-theme-toggle{width:32px}.nav-profile .avatar{width:34px;height:34px}.nav-profile{gap:0}.landing-auth-actions{gap:6px}.landing-auth-actions button{min-height:34px;padding:0 10px;font-size:9px}}
 
 /* The secondary white search bar was removed; content starts below main navigation. */
 body:has(.search-page) .page-content--flush{min-height:calc(100vh - 72px)}
