@@ -2975,3 +2975,44 @@ html[data-theme='dark'] .platform-custom-note{color:#a3bdd4}
   .platform-add-link{margin-left:auto}
 }
 
+/* Keep custom site links beside the updated platform switch. */
+.results-search-filters .platform-switch-container{grid-column:1/-1;min-width:0}
+.results-search-filters .platform-switch-container>.platform-picker-row{flex-basis:100%}
+.results-search-filters .platform-switch-with-links{
+  width:max-content;
+  max-width:calc(100% - 50px);
+  min-width:0;
+  flex:0 1 auto;
+  align-items:center;
+}
+.results-search-filters .platform-switch-with-link-rows{width:850px}
+.results-search-filters .platform-switch-with-links .platform-custom-link{width:245px}
+.results-search-filters .platform-switch-with-links .platform-custom-link-grid .platform-custom-link{width:100%}
+.platform-switch-with-links .platform-custom-link button{
+  display:grid;
+  width:20px;
+  height:20px;
+  flex:none;
+  place-items:center;
+  border:0;
+  border-radius:5px;
+  background:transparent;
+  padding:0;
+  color:#66819a;
+  cursor:pointer;
+}
+.platform-switch-with-links .platform-custom-link button:hover{background:rgba(62,127,184,.13);color:#1c679f}
+@media(max-width:560px){
+  .results-search-filters .platform-switch-with-links,
+  .results-search-filters .platform-switch-with-link-rows{width:100%;max-width:100%;flex-basis:100%}
+  .results-search-filters .platform-switch-with-links .platform-custom-link,
+  .results-search-filters .platform-switch-with-links .platform-custom-link-grid .platform-custom-link{width:100%}
+  .results-search-filters .platform-switch-with-links>.platform-custom-link{flex-basis:100%}
+  .results-search-filters .platform-switch-with-links .platform-custom-link-grid{grid-template-columns:1fr}
+}
+.source-modal-error{margin:0;border:1px solid rgba(220,41,67,.25);border-radius:8px;background:rgba(220,41,67,.09);padding:9px 11px;color:#b4233a;font-size:12px;line-height:1.4}
+.repository-select-all{display:flex;align-items:center;gap:12px;cursor:pointer}
+.repository-select-all input{width:19px;height:19px;flex:none;accent-color:#2878ca;cursor:pointer}
+.repository-select-all h2,.repository-select-all p{margin:0}
+.repository-platform .pl-logo,.repository-platform .pl-badge{flex:none;margin-right:5px}
+
