@@ -1,10 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
 import { api, downloadSearchExport, waitForSearch } from './api'
 import type { ApiPublication, ApiSearch, ApiSource } from './api'
 import {
   ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3,
-  Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, CircleAlert,
+  Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert,
   CircleHelp, Download, ExternalLink, Eye, EyeOff, Heart, Lock, Mail, MapPin,
   Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Star, Sun, TrendingUp, User, Users, X,
 } from 'lucide-react'
@@ -38,9 +38,8 @@ const formatDateInput = (date: Date) => {
 }
 
 const todayInputValue = () => formatDateInput(new Date())
+const capToToday = (value: string) => (value && value > todayInputValue() ? todayInputValue() : value)
 const openDatePicker = (input: HTMLInputElement) => input.showPicker?.()
-const defaultPeriodStartValue = () => '2026-10-19'
-const defaultPeriodEndValue = () => '2026-11-19'
 const formatCompactDate = (value: string) => {
   const [year, month, day] = value.split('-')
   return year && month && day ? `${day}\\${month}\\${year.slice(-2)}` : 'дд\\мм\\гг'
@@ -110,16 +109,17 @@ function App() {
   const [page, setPage] = useState<Page>('results')
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
-  const [periodStart, setPeriodStart] = useState(defaultPeriodStartValue)
-  const [periodEnd, setPeriodEnd] = useState(defaultPeriodEndValue)
+  const [periodStart, setPeriodStart] = useState(monthAgoInputValue)
+  const [periodEnd, setPeriodEnd] = useState(todayInputValue)
   const [region, setRegion] = useState('Красноярский край')
   const [regions, setRegions] = useState(['Красноярский край', 'Красноярск', 'Ачинск', 'Норильск'])
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
   const [sources, setSources] = useState<Source[]>(initialSources)
   const [results, setResults] = useState<Publication[]>([])
   const [searchId, setSearchId] = useState<number | null>(null)
-  const [searchStatus, setSearchStatus] = useState<ApiSearch['status'] | null>(null)
+  const [, setSearchStatus] = useState<ApiSearch['status'] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
+  const searchRunRef = useRef(0)
   const [apiError, setApiError] = useState('')
   const [saved, setSaved] = useState(initialSaved)
   const [notice, setNotice] = useState('')
@@ -185,6 +185,18 @@ function App() {
   }, [])
 
   const togglePlatform = (platform: Platform) => setPlatforms(current => current.includes(platform) ? current.filter(value => value !== platform) : [...current, platform])
+  const updateQuery = (value: string) => {
+    if (value === query) return
+    searchRunRef.current += 1
+    setQuery(value)
+    setHasSearched(false)
+    setIsSearching(false)
+    setResults([])
+    setSearchId(null)
+    setSearchStatus(null)
+    setNotice('')
+    setApiError('')
+  }
   const runSearch = async (event: FormEvent) => {
     event.preventDefault()
     if (!query.trim() || isSearching) return
@@ -194,6 +206,7 @@ function App() {
       return
     }
 
+    const runId = ++searchRunRef.current
     setApiError('')
     setNotice('')
     setIsSearching(true)
@@ -212,24 +225,29 @@ function App() {
         provider: 'real',
         useAi: true,
       })
+      if (searchRunRef.current !== runId) return
       setSearchId(created.id)
       setSearchStatus(created.status)
       const completed = await waitForSearch(created.id)
+      if (searchRunRef.current !== runId) return
       setSearchStatus(completed.status)
       if (completed.status === 'FAILED') throw new Error(completed.error || 'Поиск завершился с ошибкой.')
       const publicationPage = await api.publications(created.id)
+      if (searchRunRef.current !== runId) return
       setResults(publicationPage.content.map(mapPublication))
       setNotice(completed.status === 'COMPLETED_PARTIAL'
         ? `Поиск завершён частично: найдено ${publicationPage.totalElements} публикаций, часть источников недоступна.`
         : `Поиск завершён: найдено ${publicationPage.totalElements} публикаций.`)
     } catch (error) {
+      if (searchRunRef.current !== runId) return
       setSearchStatus('FAILED')
       setApiError(getErrorMessage(error))
     } finally {
-      setIsSearching(false)
+      if (searchRunRef.current === runId) setIsSearching(false)
     }
   }
   const openSaved = async (item: SavedQuery) => {
+    searchRunRef.current += 1
     setQuery(item.query)
     if (item.region !== 'Все регионы') setRegion(item.region)
     setPage('results')
@@ -321,14 +339,14 @@ function App() {
     <aside className="app-sidebar">
       <div className="brand-card"><img className="brand-emblem" src="/favicon.png" alt="Герб Красноярского края со львом"/><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
       <nav className="sidebar-nav">
-        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Результаты</NavItem>
+        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Поиск</NavItem>
         <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
         <NavItem active={page === 'saved'} icon={<Bookmark size={18}/>} onClick={() => setPage('saved')}>Сохранённые запросы</NavItem>
         <NavItem active={page === 'analytics'} icon={<BarChart3 size={18}/>} onClick={() => setPage('analytics')}>Аналитика</NavItem>
         <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
       </nav>
-      <div className="nav-user-actions"><button className="nav-theme-toggle" aria-label={cityBackground === 'evening' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Сменить тему" onClick={() => setThemeMode(cityBackground === 'evening' ? 'light' : 'dark')}>{cityBackground === 'evening' ? <Sun size={18}/> : <Moon size={18}/>}</button><div className="profile-menu-wrap"><div className="nav-profile" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setProfileMenuOpen(open => !open) }}><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={14}/></div>{profileMenuOpen && <div className="profile-menu"><button type="button" onClick={() => { setProfileMenuOpen(false); setPage('login') }}>Выйти</button></div>}</div></div>
-      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div className="avatar">ИП</div><div><b>Иван Петров</b><span>Сотрудник агентства</span></div><ChevronDown size={15}/></div></div>
+      <div className="nav-user-actions"><button className="nav-theme-toggle" aria-label={cityBackground === 'evening' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Сменить тему" onClick={() => setThemeMode(cityBackground === 'evening' ? 'light' : 'dark')}>{cityBackground === 'evening' ? <Sun size={18}/> : <Moon size={18}/>}</button><div className="profile-menu-wrap"><div className="nav-profile" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setProfileMenuOpen(open => !open) }}><div className="nav-profile-copy"><b>Иван Петров</b></div>{profileMenuOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</div>{profileMenuOpen && <div className="profile-menu"><button type="button" onClick={() => { setProfileMenuOpen(false); setPage('login') }}>Выйти</button></div>}</div></div>
+      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div><b>Иван Петров</b></div><ChevronDown size={15}/></div></div>
     </aside>
     <main className="main-area">
       <div className="page-content">
@@ -343,7 +361,7 @@ function App() {
         </div>}
         {apiError && <div className="api-error"><CircleAlert size={16}/><span>{apiError}</span><button onClick={() => setApiError('')} aria-label="Закрыть"><X size={15}/></button></div>}
         {page === 'results' && <ResultsPage
-          results={results} query={query} setQuery={setQuery} hasSearched={hasSearched} isSearching={isSearching} searchStatus={searchStatus}
+          results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching}
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
           onSubmit={runSearch} onExport={exportResults} onOpen={item => { setSelectedPublication(item); setPage('publication') }}
@@ -453,7 +471,7 @@ function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 're
 function NavItem({ active, icon, onClick, children }: { active: boolean; icon: ReactNode; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} className={`nav-link ${active ? 'nav-active' : ''}`}>{icon}<span>{children}</span></button> }
 
 function PlatformBadge({ platform, size = 44 }: { platform: Platform; size?: number }) {
-  if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size, fontSize: Math.round(size * 0.3) }}>VK</span>
+  if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size }}><img src="/vk-logo.svg" alt="" aria-hidden="true"/></span>
   if (platform === 'OK') return <span className="pl-badge pl-ok" style={{ width: size, height: size }}>
     <svg width={Math.round(size * 0.68)} height={Math.round(size * 0.68)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
       <circle cx="32" cy="18" r="8" fill="#fff"/>
@@ -474,18 +492,112 @@ function Switch({ checked, onChange, blue, large, label }: { checked: boolean; o
 }
 
 function CompactDateInput({ value, min, max, onChange, label }: { value: string; min?: string; max?: string; onChange: (value: string) => void; label: string }) {
-  return <div className="compact-date-control">
-    <span className="compact-date-value" aria-hidden="true">{formatCompactDate(value)}</span>
-    <CalendarDays size={14} aria-hidden="true"/>
-    <input
-      type="date"
-      value={value}
-      min={min}
-      max={max}
-      aria-label={label}
-      onClick={event => openDatePicker(event.currentTarget)}
-      onChange={event => onChange(event.target.value)}
-    />
+  const initialDate = value ? new Date(`${value}T00:00:00`) : new Date()
+  const [open, setOpen] = useState(false)
+  const [periodPicker, setPeriodPicker] = useState<'month' | 'year' | null>(null)
+  const [viewMonth, setViewMonth] = useState(() => new Date(initialDate.getFullYear(), initialDate.getMonth(), 1))
+  const calendarRef = useRef<HTMLDivElement>(null)
+  const activeYearRef = useRef<HTMLButtonElement>(null)
+
+  useEffect(() => {
+    if (!value) return
+    const selected = new Date(`${value}T00:00:00`)
+    setViewMonth(new Date(selected.getFullYear(), selected.getMonth(), 1))
+  }, [value])
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!calendarRef.current?.contains(event.target as Node)) {
+        setOpen(false)
+        setPeriodPicker(null)
+      }
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
+  }, [open])
+
+  useEffect(() => {
+    if (periodPicker !== 'year') return
+    window.requestAnimationFrame(() => {
+      const option = activeYearRef.current
+      if (option?.parentElement) option.parentElement.scrollTop = option.offsetTop - option.parentElement.clientHeight / 2
+    })
+  }, [periodPicker])
+
+  const firstWeekday = (new Date(viewMonth.getFullYear(), viewMonth.getMonth(), 1).getDay() + 6) % 7
+  const daysInMonth = new Date(viewMonth.getFullYear(), viewMonth.getMonth() + 1, 0).getDate()
+  const days = Array.from({ length: firstWeekday + daysInMonth }, (_, index) => index < firstWeekday ? null : index - firstWeekday + 1)
+  const monthOptions = Array.from({ length: 12 }, (_, month) => new Intl.DateTimeFormat('ru-RU', { month: 'long' }).format(new Date(2026, month, 1)))
+  const currentYear = new Date().getFullYear()
+  const selectedYear = initialDate.getFullYear()
+  const firstYear = min ? Number(min.slice(0, 4)) : Math.min(currentYear - 50, selectedYear - 10)
+  const lastYear = max ? Number(max.slice(0, 4)) : Math.max(currentYear + 50, selectedYear + 10)
+  const yearOptions = Array.from({ length: lastYear - firstYear + 1 }, (_, index) => firstYear + index)
+  const minMonth = min ? new Date(Number(min.slice(0, 4)), Number(min.slice(5, 7)) - 1, 1) : null
+  const maxMonth = max ? new Date(Number(max.slice(0, 4)), Number(max.slice(5, 7)) - 1, 1) : null
+  const today = todayInputValue()
+  const selectDate = (day: number) => {
+    const nextValue = formatDateInput(new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day))
+    onChange(nextValue)
+    setOpen(false)
+  }
+  const chooseToday = () => {
+    if ((min && today < min) || (max && today > max)) return
+    onChange(today)
+    const current = new Date()
+    setViewMonth(new Date(current.getFullYear(), current.getMonth(), 1))
+    setOpen(false)
+  }
+
+  return <div className="compact-date-control" ref={calendarRef} onKeyDown={event => { if (event.key === 'Escape') { if (periodPicker) setPeriodPicker(null); else setOpen(false) } }}>
+    <button type="button" className="compact-date-trigger" aria-label={label} aria-haspopup="dialog" aria-expanded={open} onClick={() => { setOpen(current => !current); setPeriodPicker(null) }}>
+      <span className="compact-date-value">{formatCompactDate(value)}</span>
+      <CalendarDays size={15} aria-hidden="true"/>
+    </button>
+    {open && <div className="date-calendar-popover" role="dialog" aria-label={label}>
+      <div className="date-calendar-head">
+        <button type="button" aria-label="Предыдущий месяц" disabled={Boolean(minMonth && viewMonth <= minMonth)} onClick={() => setViewMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><ChevronLeft size={17}/></button>
+        <div className="date-calendar-period">
+          <div className={`date-calendar-select ${periodPicker === 'month' ? 'open' : ''}`}>
+            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'month'} onClick={() => setPeriodPicker(current => current === 'month' ? null : 'month')}><span>{monthOptions[viewMonth.getMonth()]}</span><ChevronDown size={13}/></button>
+            {periodPicker === 'month' && <div className="date-calendar-options" role="listbox" aria-label="Выбрать месяц">{monthOptions.map((month, index) => { const monthDate = new Date(viewMonth.getFullYear(), index, 1); const outOfRange = Boolean((minMonth && monthDate < minMonth) || (maxMonth && monthDate > maxMonth)); return <button type="button" role="option" aria-selected={index === viewMonth.getMonth()} className={index === viewMonth.getMonth() ? 'selected' : ''} key={month} disabled={outOfRange} onClick={() => { setViewMonth(monthDate); setPeriodPicker(null) }}>{month}</button> })}</div>}
+          </div>
+          <div className={`date-calendar-select date-calendar-year ${periodPicker === 'year' ? 'open' : ''}`}>
+            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'year'} onClick={() => setPeriodPicker(current => current === 'year' ? null : 'year')}><span>{viewMonth.getFullYear()}</span><ChevronDown size={13}/></button>
+            {periodPicker === 'year' && <div className="date-calendar-options" role="listbox" aria-label="Выбрать год">{yearOptions.map(year => <button type="button" role="option" aria-selected={year === viewMonth.getFullYear()} className={year === viewMonth.getFullYear() ? 'selected' : ''} ref={year === viewMonth.getFullYear() ? activeYearRef : undefined} key={year} onClick={() => { setViewMonth(current => new Date(year, current.getMonth(), 1)); setPeriodPicker(null) }}>{year}</button>)}</div>}
+          </div>
+        </div>
+        <button type="button" aria-label="Следующий месяц" disabled={Boolean(maxMonth && viewMonth >= maxMonth)} onClick={() => setViewMonth(current => new Date(current.getFullYear(), current.getMonth() + 1, 1))}><ChevronRight size={17}/></button>
+      </div>
+      <div className="date-calendar-weekdays" aria-hidden="true">{['Пн','Вт','Ср','Чт','Пт','Сб','Вс'].map(day => <span key={day}>{day}</span>)}</div>
+      <div className="date-calendar-grid">{days.map((day, index) => {
+        if (day === null) return <span key={`empty-${index}`}/>
+        const dayValue = formatDateInput(new Date(viewMonth.getFullYear(), viewMonth.getMonth(), day))
+        const disabled = Boolean((min && dayValue < min) || (max && dayValue > max))
+        return <button type="button" key={dayValue} className={`${dayValue === value ? 'selected' : ''} ${dayValue === today ? 'today' : ''}`} disabled={disabled} aria-label={dayValue} aria-pressed={dayValue === value} onClick={() => selectDate(day)}>{day}</button>
+      })}</div>
+      <div className="date-calendar-footer"><button type="button" onClick={chooseToday} disabled={Boolean((min && today < min) || (max && today > max))}>Сегодня</button></div>
+    </div>}
+  </div>
+}
+
+function RegionDropdown({ value, options, onChange, className = '' }: { value: string; options: string[]; onChange: (value: string) => void; className?: string }) {
+  const [open, setOpen] = useState(false)
+  const dropdownRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    if (!open) return
+    const closeOnOutsideClick = (event: PointerEvent) => {
+      if (!dropdownRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', closeOnOutsideClick)
+    return () => document.removeEventListener('pointerdown', closeOnOutsideClick)
+  }, [open])
+
+  return <div className={`region-select ${className} ${open ? 'open' : ''}`} ref={dropdownRef} onKeyDown={event => { if (event.key === 'Escape') setOpen(false) }}>
+    <button type="button" className="region-select-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(current => !current)}><MapPin size={14}/><span>{value}</span><ChevronDown size={13}/></button>
+    {open && <div className="region-select-options" role="listbox" aria-label="Выбрать регион">{options.map(item => <button type="button" role="option" aria-selected={item === value} className={item === value ? 'selected' : ''} key={item} onClick={() => { onChange(item); setOpen(false) }}>{item}</button>)}</div>}
   </div>
 }
 
@@ -495,16 +607,16 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
   const [withMedia, setWithMedia] = useState(false)
   const [excludeReposts, setExcludeReposts] = useState(false)
   if (embedded) return <form className="results-search-panel" onSubmit={onSubmit}>
-    <div className="results-search-copy"><h1>Результаты</h1><p>Введите тему, событие или ключевые слова — найденные публикации появятся ниже.</p></div>
+    <div className="results-search-copy"><h1>Поиск публикаций</h1><p>Введите тему, событие или ключевые слова — найденные публикации появятся ниже.</p></div>
     <div className="results-search-row">
       <div className="results-query-field"><Search size={17}/><input required value={query} onChange={event => setQuery(event.target.value)} placeholder="Например, открытие нового ледового дворца в Красноярске"/></div>
       <button type="submit" className="primary-action results-find" disabled={isSearching}><Search size={15}/>{isSearching ? 'Ищем…' : 'Найти'}</button>
     </div>
     <div className="results-search-examples"><span>Например:</span>{exampleTopics.map(topic => <button type="button" key={topic} onClick={() => setQuery(topic)}>{topic}</button>)}</div>
     <div className="results-search-filters">
-      <label><span>Период с</span><CompactDateInput value={periodStart} max={periodEnd || undefined} label="Начало периода" onChange={setPeriodStart}/></label>
-      <label><span>по</span><CompactDateInput value={periodEnd} min={periodStart} label="Конец периода" onChange={setPeriodEnd}/></label>
-      <label className="results-region"><span>Регион</span><div><MapPin size={14}/><select value={region} onChange={event => setRegion(event.target.value)}>{regions.map(item => <option key={item}>{item}</option>)}</select><ChevronDown size={13}/></div></label>
+      <label><span>Период с</span><CompactDateInput value={periodStart} max={capToToday(periodEnd) || undefined} label="Начало периода" onChange={setPeriodStart}/></label>
+      <label><span>по</span><CompactDateInput value={periodEnd} min={periodStart} max={todayInputValue()} label="Конец периода" onChange={setPeriodEnd}/></label>
+      <div className="results-region"><span>Регион</span><RegionDropdown value={region} options={regions} onChange={setRegion}/></div>
       <fieldset className="platform-filter"><legend>Площадки</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={platforms.includes(item) ? 'selected' : ''} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}</fieldset>
     </div>
   </form>
@@ -524,21 +636,15 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
             <span className="filter-label">Период публикации</span>
             <div className="period-box">
               <CalendarDays size={17}/>
-              <input type="date" value={periodStart} max={periodEnd || undefined} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodStart(event.target.value)} aria-label="Начало периода"/>
+              <input type="date" value={periodStart} max={capToToday(periodEnd) || undefined} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setPeriodStart(periodEnd && capped > periodEnd ? periodEnd : capped) }} aria-label="Начало периода"/>
               <span className="period-dash">—</span>
-              <input type="date" value={periodEnd} min={periodStart} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setPeriodEnd(event.target.value)} aria-label="Конец периода"/>
+              <input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setPeriodEnd(periodStart && capped < periodStart ? periodStart : capped) }} aria-label="Конец периода"/>
               <ChevronDown size={15}/>
             </div>
           </div>
           <div className="filter-block">
             <span className="filter-label">Регион</span>
-            <div className="region-box">
-              <MapPin size={17}/>
-              <select value={region} onChange={event => setRegion(event.target.value)} aria-label="Регион">
-                {regions.map(item => <option key={item}>{item}</option>)}
-              </select>
-              <ChevronDown size={16}/>
-            </div>
+            <RegionDropdown className="region-box" value={region} options={regions} onChange={setRegion}/>
           </div>
         </div>
         <div className="sources-card">
@@ -582,25 +688,41 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
 }
 function Toggle({ checked, onChange, title, description }: { checked: boolean; onChange: () => void; title: string; description: string }) { return <div className="toggle-row"><div><b>{title}</b><span>{description}</span></div><button type="button" className={`switch ${checked ? 'switch-on' : ''}`} onClick={onChange} role="switch" aria-checked={checked}><i/></button></div> }
 
-function ResultsPage({ results, query, setQuery, hasSearched, isSearching, searchStatus, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; searchStatus: ApiSearch['status'] | null; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void }) {
+function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void }) {
   const [resultPage, setResultPage] = useState(1)
   const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
   const [savedResult, setSavedResult] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
   const shown = sort === 'newest' ? [...results].reverse() : results
   const pageSize = 4
-  const pageItems = shown.slice((resultPage - 1) * pageSize, resultPage * pageSize)
+  const pageItems = shown.slice(0, resultPage * pageSize)
   const pages = Math.max(1, Math.ceil(shown.length / pageSize))
   const prettyDate = (value: string) => value.split('-').reverse().join('.')
   const toggle = (id: number) => setSelected(current => current.includes(id) ? current.filter(item => item !== id) : [...current, id])
+  const loadMoreRef = useRef<HTMLDivElement>(null)
+  useEffect(() => { setResultPage(1) }, [results])
+  useEffect(() => {
+    const node = loadMoreRef.current
+    if (!node || resultPage >= pages) return
+    const observer = new IntersectionObserver(entries => {
+      if (entries.some(entry => entry.isIntersecting)) setResultPage(current => Math.min(pages, current + 1))
+    }, { rootMargin: '240px 0px' })
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [resultPage, pages])
   return <div className="design-page results-page">
     <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} isSearching={isSearching}/>
-    {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники. Статус: {searchStatus ?? 'RUNNING'}.</p></div> : <>
-    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1></div><div className="heading-actions"><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
-    <div className="results-summary-bar"><div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div><div className="summary-filter"><MapPin size={15}/><span>{region}</span><ChevronDown size={13}/></div><span className="results-platform-summary">{platforms.length ? platforms.join(' · ') : 'Площадки не выбраны'}</span></div>
+    {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники.</p></div> : <>
+    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
+    <div className="results-summary-bar">
+      <div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div>
+      <div className="summary-filter"><MapPin size={15}/><span>{region}</span></div>
+      <span className="results-platform-summary">{platforms.length ? platforms.join(' · ') : 'Площадки не выбраны'}</span>
+    </div>
     <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select><ChevronDown size={12}/></label></div>
       <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className="result-photo publication-thumb has-image"><img className="media-photo" src={item.image} alt=""/><span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
-      <div className="results-pagination"><span>Показано <b>{pageItems.length}</b> из <b>{results.length}</b> публикаций <i>· данные API</i></span><div><button onClick={() => setResultPage(current => Math.max(1,current-1))} disabled={resultPage <= 1}><ChevronLeft size={15}/></button><button className="pagination-current">{resultPage}</button><button onClick={() => setResultPage(current => Math.min(pages,current+1))} disabled={resultPage >= pages}><ChevronRight size={15}/></button></div></div>
+      <div className="results-pagination"><span>Показано <b>{pageItems.length}</b> из <b>{results.length}</b> публикаций</span>{resultPage < pages && <span className="results-scroll-hint"><ChevronDown size={14}/>Листайте вниз — покажем ещё</span>}</div>
+      <div ref={loadMoreRef} aria-hidden="true" className="results-load-sentinel"/>
     </section>
     </> : <div className="results-empty-state"><span><Search size={24}/></span><h2>Введите запрос, чтобы начать поиск</h2><p>Результаты публикаций появятся здесь сразу после нажатия кнопки «Найти».</p></div>}
   </div>
@@ -656,7 +778,7 @@ function AnalyticsPage() {
     { name: 'Одноклассники', value: 'OK' as const, color: '#f59a35', points: '0,145 40,139 80,132 120,136 160,126 200,130 240,115 280,121 320,107 360,111 400,93 440,105 480,84 520,91 560,75 600,80' },
     { name: 'MAX', value: 'MAX' as const, color: '#db477a', points: '0,158 40,153 80,150 120,143 160,147 200,135 240,139 280,126 320,130 360,117 400,122 440,105 480,114 520,96 560,100 600,86' },
   ]
-  return <div className="design-page analytics-page"><div className="design-page-heading"><div><h1>Аналитика</h1><p>Обзор найденных публикаций и активности по теме</p></div><div className="analytics-date"><CalendarDays size={14}/><input type="date" value={analyticsStart} max={analyticsEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setAnalyticsStart(event.target.value)} aria-label="Начало периода аналитики"/><span>—</span><input type="date" value={analyticsEnd} min={analyticsStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => setAnalyticsEnd(event.target.value)} aria-label="Конец периода аналитики"/></div></div><div className="analytics-demo-note"><CircleAlert size={13}/>Демонстрационные данные за выбранный период</div>
+  return <div className="design-page analytics-page"><div className="design-page-heading"><div><h1>Аналитика</h1><p>Обзор найденных публикаций и активности по теме</p></div><div className="analytics-date"><CalendarDays size={14}/><input type="date" value={analyticsStart} max={analyticsEnd || todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setAnalyticsStart(analyticsEnd && capped > analyticsEnd ? analyticsEnd : capped) }} aria-label="Начало периода аналитики"/><span>—</span><input type="date" value={analyticsEnd} min={analyticsStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setAnalyticsEnd(analyticsStart && capped < analyticsStart ? analyticsStart : capped) }} aria-label="Конец периода аналитики"/></div></div><div className="analytics-demo-note"><CircleAlert size={13}/>Демонстрационные данные за выбранный период</div>
     <div className="analytics-stats"><div className="analytics-stat total"><span>Всего публикаций</span><div>248 <small>шт.</small></div><em><TrendingUp size={12}/>+12% к прошлому периоду</em></div><div className="analytics-stat"><span><i className="analytics-platform vk">ᴠκ</i>ВКонтакте</span><div>124</div><em><ArrowUpRight size={12}/>+8%</em></div><div className="analytics-stat"><span><i className="analytics-platform ok">✦</i>Одноклассники</span><div>86</div><em><ArrowUpRight size={12}/>+15%</em></div><div className="analytics-stat"><span><i className="analytics-platform max">●</i>MAX</span><div>38</div><em><ArrowUpRight size={12}/>+6%</em></div></div>
     <div className="analytics-grid"><section className="design-card trend-card"><div className="design-card-heading"><div><h2>Динамика публикаций</h2><p>Количество публикаций по дням</p></div><div className="chart-legend"><button onClick={() => setPlatform('Все')} className={platform === 'Все' ? 'legend-active' : ''}><i style={{background:'#33415d'}}/>Все</button>{series.map(item => <button key={item.name} onClick={() => setPlatform(item.value)} className={platform === item.value ? 'legend-active' : ''}><i style={{background:item.color}}/>{item.name}</button>)}</div></div><div className="chart-wrap"><div className="chart-y-labels"><span>80</span><span>60</span><span>40</span><span>20</span><span>0</span></div><svg className="trend-chart" viewBox="0 0 600 180" role="img" aria-label="Динамика публикаций"><g className="chart-grid">{[20,55,90,125,160].map(y => <line key={y} x1="0" x2="600" y1={y} y2={y}/>)}</g>{series.filter(item => platform === 'Все' || item.value === platform).map(item => <polyline key={item.name} points={item.points} fill="none" stroke={item.color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round"/>)}</svg></div><div className="chart-x-labels">{chartLabels.map((label, index) => <span key={`${label}-${index}`}>{label}</span>)}</div><div className="chart-footnote"><span><span className="live-dot"/>Пик активности</span><b>{chartLabels[3]} · 48 публикаций</b></div></section>
       <section className="design-card topics-card"><div className="design-card-heading"><div><h2>Типы контента</h2><p>Распределение публикаций</p></div></div><div className="donut-area"><div className="donut-chart"><div><b>248</b><span>публикаций</span></div></div><div className="donut-legend"><span><i className="donut-posts"/>Посты <b>42%</b></span><span><i className="donut-repost"/>Репосты <b>18%</b></span><span><i className="donut-video"/>Видео <b>13%</b></span><span><i className="donut-photo"/>Фото <b>24%</b></span><span><i className="donut-comments"/>Комментарии <b>3%</b></span></div></div><div className="topic-divider"/><h3>Популярные темы</h3><div className="analytics-topics">{([['Ледовый дворец',68],['Открытие',51],['Красноярск',43],['Спорт',35]] as [string,number][]).map(([name,count]) => <div key={name}><span>{name}</span><div><i style={{width:`${count/68*100}%`}}/></div><b>{count}</b></div>)}</div></section></div>

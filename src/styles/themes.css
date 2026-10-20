@@ -1,4 +1,4 @@
-﻿/* User-provided videos replace the photo backgrounds in both themes. */
+/* User-provided videos replace the photo backgrounds in both themes. */
 .app-shell[data-city-background]{
   position:relative;
   isolation:isolate;
@@ -148,7 +148,8 @@ html[data-theme='light'] .results-page{
 html[data-theme='light'] .results-page .results-search-panel,
 html[data-theme='light'] .results-page .design-card,
 html[data-theme='light'] .results-page .results-summary-bar,
-html[data-theme='light'] .results-page .results-empty-state{
+html[data-theme='light'] .results-page .results-empty-state,
+html[data-theme='light'] .results-page .date-calendar-popover{
   border-color:rgba(255,255,255,.82);
   background:rgba(255,255,255,.9);
   box-shadow:0 16px 38px rgba(25,49,76,.16);
@@ -266,6 +267,9 @@ html[data-theme='light'] .nav-theme-toggle:hover{
 html[data-theme='light'] .nav-profile{
   color:#25334f;
 }
+html[data-theme='light'] .nav-profile:hover{
+  background:rgba(0,0,0,0.05);
+}
 html[data-theme='light'] .nav-profile b{
   color:#25334f;
 }
@@ -291,21 +295,21 @@ html[data-theme='light'] .nav-profile>svg{
 .api-error button{display:grid;place-items:center;border:0;background:transparent;color:inherit}
 html[data-theme='dark'] .api-error{border-color:#8b4050;background:#3b2333;color:#ffb6c2}
 html[data-theme='dark'] .notice{
-  border-color:rgba(81,205,143,.24);
-  background:rgba(12,31,37,.94);
-  color:#dff8ea;
+  border-color:rgba(242,55,90,.3);
+  background:rgba(24,18,26,.94);
+  color:#ffe9ee;
   box-shadow:0 20px 52px rgba(0,8,18,.42),0 4px 14px rgba(0,8,18,.26);
 }
 html[data-theme='dark'] .notice-icon{
-  background:linear-gradient(145deg,#31bd7d,#197e57);
-  color:#f2fff8;
-  box-shadow:0 8px 18px rgba(31,189,125,.18);
+  background:linear-gradient(145deg,#f2375a,#c8183a);
+  color:#fff;
+  box-shadow:0 8px 18px rgba(229,29,59,.24);
 }
-html[data-theme='dark'] .notice-content strong{color:#ecfff4}
-html[data-theme='dark'] .notice-content>span{color:#9dbbad}
-html[data-theme='dark'] .notice .notice-close{color:#83a394}
-html[data-theme='dark'] .notice .notice-close:hover{background:rgba(74,190,132,.13);color:#c7f3dd}
-html[data-theme='dark'] .notice-progress{background:linear-gradient(90deg,#37c883,#6ce6aa)}
+html[data-theme='dark'] .notice-content strong{color:#fff2f4}
+html[data-theme='dark'] .notice-content>span{color:#bd9aa7}
+html[data-theme='dark'] .notice .notice-close{color:#a58390}
+html[data-theme='dark'] .notice .notice-close:hover{background:rgba(242,55,90,.14);color:#ffc6d1}
+html[data-theme='dark'] .notice-progress{background:linear-gradient(90deg,#c8183a,#f2375a)}
 
 /* Native option popovers need an explicit dark palette for readable text. */
 html[data-theme='dark'] select{
