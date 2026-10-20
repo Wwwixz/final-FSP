@@ -1,0 +1,38 @@
+{
+  "manifest_version": 3,
+  "name": "Краснопарс — медиамониторинг",
+  "version": "1.3.0",
+  "description": "Быстрый поиск публикаций, управление источниками и выгрузка подборок из браузера.",
+  "host_permissions": [
+    "http://109.196.167.225:8080/*"
+  ],
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "96": "icons/icon-96.png",
+    "128": "icons/icon-128.png"
+  },
+  "action": {
+    "default_title": "Краснопарс — медиамониторинг",
+    "default_popup": "index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "krasnopars@example.org",
+      "strict_min_version": "109.0"
+    }
+  },
+  "permissions": [
+    "contextMenus",
+    "storage"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  }
+}
