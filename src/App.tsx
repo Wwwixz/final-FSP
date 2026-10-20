@@ -5,7 +5,7 @@ import type { ApiPublication, ApiSearch, ApiSource } from './api'
 import {
   ArrowLeft, ArrowRight,
   BarChart3, Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert,
-  CircleHelp, Download, ExternalLink, Eye, EyeOff, Frown, Heart, Lock, Mail, MapPin, Meh,
+  CircleHelp, Download, ExternalLink, Eye, EyeOff, Frown, Heart, Link2, Lock, Mail, MapPin, Meh,
   Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Smile, Star, Sun, User, Users, X,
 } from 'lucide-react'
 type Page = 'login' | 'register' | 'results' | 'publication' | 'sources' | 'saved' | 'settings'
@@ -13,6 +13,7 @@ type Platform = 'VK' | 'OK' | 'MAX'
 type LocalSourcePlatform = 'TG' | 'DZEN'
 type SourcePlatform = Platform | LocalSourcePlatform
 type Source = { id: number; name: string; platform: SourcePlatform; url: string; followers: string; region: string; active: boolean; color: string }
+type CustomSearchLink = { id: string; url: string }
 type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean; status?: ApiSearch['status']; totalFound?: number; createdAt?: string; platforms?: Platform[] }
 type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; image: string; likes: number; reposts: number; views: number; aiRelevance: number | null; aiComment: string | null }
 type CityBackground = 'day' | 'evening'
@@ -64,6 +65,7 @@ const initialSources: Source[] = [
   { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
 const localSourcesStorageKey = 'krasnopars-local-sources'
+const customSearchLinksStorageKey = 'krasnopars-custom-search-links'
 const isLocalSourcePlatform = (platform: SourcePlatform): platform is LocalSourcePlatform => platform === 'TG' || platform === 'DZEN'
 const isApiSource = (source: Source): source is Source & { platform: Platform } => !isLocalSourcePlatform(source.platform)
 const localPlatformColor: Record<LocalSourcePlatform, string> = { TG: '#229ed9', DZEN: '#202022' }
@@ -79,6 +81,20 @@ const readLocalSources = (): Source[] => {
       const platform = source.platform
       if (typeof source.id !== 'number' || source.id >= 0 || typeof source.name !== 'string' || typeof source.url !== 'string' || (platform !== 'TG' && platform !== 'DZEN')) return []
       return [{ id: source.id, name: source.name, platform, url: source.url, followers: '—', region: 'Красноярский край', active: false, color: localPlatformColor[platform] }]
+    })
+  } catch {
+    return []
+  }
+}
+const readCustomSearchLinks = (): CustomSearchLink[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(customSearchLinksStorageKey) || '[]')
+    if (!Array.isArray(stored)) return []
+    return stored.flatMap((item: unknown) => {
+      if (!item || typeof item !== 'object') return []
+      const link = item as Partial<CustomSearchLink>
+      return typeof link.id === 'string' && typeof link.url === 'string' ? [{ id: link.id, url: link.url }] : []
     })
   } catch {
     return []
@@ -147,6 +163,8 @@ async function loadAllPublications(searchId: number) {
 
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить запрос к API.'
 const formatApiPeriod = (search: ApiSearch) => `${search.dateFrom ?? '—'} — ${search.dateTo ?? '—'}`
+const allRegionsOption = 'Все'
+const regionFromSearch = (value: string | null | undefined) => value || allRegionsOption
 
 function App() {
   const [page, setPage] = useState<Page>('results')
@@ -309,7 +327,7 @@ function App() {
         sourceIds,
         dateFrom: periodStart || undefined,
         dateTo: periodEnd || undefined,
-        region: region || undefined,
+        region: region === allRegionsOption ? undefined : region || undefined,
         provider: 'real',
         useAi: true,
       })
@@ -350,7 +368,7 @@ function App() {
     const runId = ++searchRunRef.current
     setRecentlyOpened(current => ({ ...current, [item.id]: Date.now() }))
     setQuery(item.query)
-    if (item.region !== 'Все регионы') setRegion(item.region)
+    setRegion(item.region === 'Все регионы' ? allRegionsOption : item.region)
     setPage('results')
     setHasSearched(true)
     setIsSearching(true)
@@ -368,7 +386,7 @@ function App() {
       if (resultPlatforms.length) setPlatforms(resultPlatforms)
       setPeriodStart(search.dateFrom ?? '')
       setPeriodEnd(search.dateTo ?? '')
-      if (search.region) setRegion(search.region)
+      setRegion(regionFromSearch(search.region))
       setSaved(current => current.map(savedItem => savedItem.id === item.id ? {
         ...savedItem,
         status: search.status,
@@ -404,6 +422,7 @@ function App() {
       const completed = await waitForSearch(restarted.id)
       if (searchRunRef.current !== runId) return
       setSearchStatus(completed.status)
+      setRegion(regionFromSearch(completed.region))
       if (completed.status === 'FAILED') throw new Error(completed.error || 'Повторный поиск завершился с ошибкой.')
       const publicationPage = await api.publications(restarted.id)
       if (searchRunRef.current !== runId) return
@@ -730,7 +749,8 @@ function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 're
 
 function NavItem({ active, icon, onClick, children }: { active: boolean; icon: ReactNode; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} className={`nav-link ${active ? 'nav-active' : ''}`}>{icon}<span>{children}</span></button> }
 
-function PlatformBadge({ platform, size = 44 }: { platform: Platform; size?: number }) {
+function PlatformBadge({ platform, size = 44 }: { platform: SourcePlatform; size?: number }) {
+  if (isLocalSourcePlatform(platform)) return <span className={`pl-badge pl-${platform.toLowerCase()}`} style={{ width: size, height: size }}><img src={localPlatformIcon[platform]} alt="" aria-hidden="true"/></span>
   if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size }}><img src="/vk-logo.svg" alt="" aria-hidden="true"/></span>
   if (platform === 'OK') return <span className="pl-badge pl-ok" style={{ width: size, height: size }}>
     <svg width={Math.round(size * 0.68)} height={Math.round(size * 0.68)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
@@ -893,6 +913,7 @@ function CompactDateInput({ value, min, max, rangeStart, rangeEnd, onChange, lab
 function RegionDropdown({ value, options, onChange, className = '' }: { value: string; options: string[]; onChange: (value: string) => void; className?: string }) {
   const [open, setOpen] = useState(false)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const regionOptions = [allRegionsOption, ...options.filter(item => item !== allRegionsOption && item !== 'Все регионы')]
 
   useEffect(() => {
     if (!open) return
@@ -905,7 +926,7 @@ function RegionDropdown({ value, options, onChange, className = '' }: { value: s
 
   return <div className={`region-select ${className} ${open ? 'open' : ''}`} ref={dropdownRef} onKeyDown={event => { if (event.key === 'Escape') setOpen(false) }}>
     <button type="button" className="region-select-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(current => !current)}><MapPin size={14}/><span>{value}</span><ChevronDown size={13}/></button>
-    {open && <div className="region-select-options" role="listbox" aria-label="Выбрать регион">{options.map(item => <button type="button" role="option" aria-selected={item === value} className={item === value ? 'selected' : ''} key={item} onClick={() => { onChange(item); setOpen(false) }}>{item}</button>)}</div>}
+    {open && <div className="region-select-options" role="listbox" aria-label="Выбрать регион">{regionOptions.map(item => <button type="button" role="option" aria-selected={item === value} className={item === value ? 'selected' : ''} key={item} onClick={() => { onChange(item); setOpen(false) }}>{item}</button>)}</div>}
   </div>
 }
 
@@ -914,6 +935,21 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
   const [officialOnly, setOfficialOnly] = useState(false)
   const [withMedia, setWithMedia] = useState(false)
   const [excludeReposts, setExcludeReposts] = useState(false)
+  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
+  const focusCustomLinkRef = useRef<string | null>(null)
+  useEffect(() => {
+    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
+    if (focusCustomLinkRef.current) {
+      document.getElementById(`custom-search-link-${focusCustomLinkRef.current}`)?.focus()
+      focusCustomLinkRef.current = null
+    }
+  }, [customLinks])
+  const addCustomLink = () => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    focusCustomLinkRef.current = id
+    setCustomLinks(current => [...current, { id, url: '' }])
+  }
+  const renderCustomLink = (link: CustomSearchLink, index: number) => <div className="platform-custom-link" key={link.id}><Link2 size={16}/><input id={`custom-search-link-${link.id}`} type="text" inputMode="url" autoComplete="url" aria-label={`Ссылка на сайт ${index + 1}`} placeholder="https://avangardkray.ru/" value={link.url} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault() }} onChange={event => setCustomLinks(current => current.map(item => item.id === link.id ? { ...item, url: event.target.value } : item))}/><button type="button" aria-label={`Удалить ссылку ${index + 1}`} onClick={() => setCustomLinks(current => current.filter(item => item.id !== link.id))}><X size={15}/></button></div>
   if (embedded) return <form className="results-search-panel" onSubmit={onSubmit}>
     <div className="results-search-copy"><h1>Поиск публикаций</h1><p>Введите тему, событие или ключевые слова — найденные публикации появятся ниже.</p></div>
     <div className="results-search-row">
@@ -925,7 +961,21 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
       <label className={validationSubmitted && !periodStart ? 'field-invalid-label' : ''}><span>Период с</span><CompactDateInput value={periodStart} min="2000-01-01" max={capToToday(periodEnd) || undefined} rangeStart={periodStart} rangeEnd={periodEnd} label="Начало периода" invalid={validationSubmitted && !periodStart} onChange={setPeriodStart}/></label>
       <label className={validationSubmitted && !periodEnd ? 'field-invalid-label' : ''}><span>по</span><CompactDateInput value={periodEnd} min={periodStart || '2000-01-01'} max={todayInputValue()} rangeStart={periodStart} rangeEnd={periodEnd} label="Конец периода" invalid={validationSubmitted && !periodEnd} onChange={setPeriodEnd}/></label>
       <div className={`results-region ${validationSubmitted && !region ? 'field-invalid-label' : ''}`}><span>Регион</span><RegionDropdown value={region} options={regions} onChange={setRegion}/></div>
-      <div className={`platform-filter-field ${validationSubmitted && !platforms.length ? 'platform-filter-invalid' : ''}`}><span>Соцсети</span><fieldset className={`platform-filter ${platforms.length === 0 ? 'platform-filter-empty' : ''}`} aria-invalid={platforms.length === 0}><legend>Соцсети</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={`${platforms.includes(item) ? 'selected' : 'platform-choice-unselected'} ${platforms.length === 0 ? 'platform-choice-empty' : ''}`} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}{platforms.length === 0 && <small className="platform-filter-hint">Выберите соцсеть для поиска</small>}</fieldset></div>
+      <div className={`platform-filter-field ${validationSubmitted && !platforms.length ? 'platform-filter-invalid' : ''}`}>
+        <span>Соцсети</span>
+        <div className="platform-picker-row">
+          <fieldset className={`platform-filter ${platforms.length === 0 ? 'platform-filter-empty' : ''} ${customLinks.length > 1 ? 'platform-filter-with-link-rows' : ''}`} aria-invalid={platforms.length === 0}>
+            <legend>Соцсети</legend>
+            {(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={`${platforms.includes(item) ? 'selected' : 'platform-choice-unselected'} ${platforms.length === 0 ? 'platform-choice-empty' : ''}`} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}
+            {(['TG', 'DZEN'] as LocalSourcePlatform[]).map(item => <button type="button" key={item} className="platform-choice-pending" disabled title={`Поиск в ${sourcePlatformLabel[item]} появится после подключения API`}><PlatformBadge platform={item} size={22}/><span>{sourcePlatformLabel[item]}</span><small>Скоро</small></button>)}
+            {customLinks[0] && renderCustomLink(customLinks[0], 0)}
+            {customLinks.length > 1 && <div className="platform-custom-link-grid">{customLinks.slice(1).map((link, index) => renderCustomLink(link, index + 1))}</div>}
+            {platforms.length === 0 && <small className="platform-filter-hint">Выберите соцсеть для поиска</small>}
+          </fieldset>
+          <button type="button" className="platform-add-link" aria-label="Добавить ссылку на сайт" title="Добавить ссылку на сайт" onClick={addCustomLink}><Plus size={19}/></button>
+        </div>
+        {customLinks.length > 0 && <small className="platform-custom-note">Ссылки сохраняются в браузере. Поиск по сайтам подключим позже.</small>}
+      </div>
     </div>
   </form>
   return <div className="search-page">
@@ -976,6 +1026,7 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
                 <small className="ptile-status">{platforms.includes(item) ? 'Включено' : 'Выключено'}</small>
                 <span onClick={event => event.stopPropagation()}><Switch checked={platforms.includes(item)} onChange={() => togglePlatform(item)} blue large label={`${platforms.includes(item) ? 'Выключить' : 'Включить'} ${platformLabel[item]} в поиске`}/></span>
               </div>)}
+              {(['TG', 'DZEN'] as LocalSourcePlatform[]).map(item => <div className="ptile ptile-pending" key={item} aria-disabled="true" title={`Поиск в ${sourcePlatformLabel[item]} появится после подключения API`}><PlatformBadge platform={item}/><span className="ptile-name">{sourcePlatformLabel[item]}</span><small className="ptile-status">Скоро</small></div>)}
             </div>{platforms.length === 0 && <div className="platform-tiles-hint" role="status"><CircleAlert size={14}/>Выберите соцсеть для поиска</div>}
             <button type="button" className="adv-link">Расширенные настройки <ArrowRight size={15}/></button>
           </div>
@@ -1215,7 +1266,7 @@ function SettingsPage({ tab, setTab, region, setRegion, themeMode, setThemeMode,
       {tab === 'Основные' && <div className="settings-form">
         <div className="settings-row settings-region-row">
           <strong>Регион поиска</strong>
-          <label className="settings-select"><MapPin size={15}/><select value={region} onChange={event => setRegion(event.target.value)}><option>Красноярский край</option><option>Красноярск</option><option>Ачинск</option><option>Норильск</option></select></label>
+          <label className="settings-select"><MapPin size={15}/><select value={region} onChange={event => setRegion(event.target.value)}><option>Все</option><option>Красноярский край</option><option>Красноярск</option><option>Ачинск</option><option>Норильск</option></select></label>
           <p>Основной регион для поиска публикаций</p>
         </div>
         <div className="settings-row">
