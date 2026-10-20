@@ -1,4 +1,4 @@
-export type ApiPlatform = 'VK' | 'OK' | 'MAX'
+export type ApiPlatform = 'VK' | 'OK' | 'MAX' | 'TG' | 'SITE' | 'DZEN'
 export type SearchType = 'TOPIC' | 'EVENT' | 'PERSON' | 'NEWS_TEXT'
 export type SearchMode = 'BY_SOURCES' | 'ALL_PLATFORMS'
 export type SearchStatus = 'RUNNING' | 'COMPLETED' | 'COMPLETED_PARTIAL' | 'FAILED'
@@ -8,6 +8,7 @@ export type ApiSource = {
   name: string
   platform: ApiPlatform
   url: string
+  logoUrl?: string | null
   description: string | null
   active: boolean
   createdAt: string
@@ -75,6 +76,7 @@ export type ApiPublication = {
   url: string
   title: string
   excerpt: string
+  imageUrl?: string | null
   publishedAt: string | null
   hasDate: boolean
   relevance: number
@@ -100,7 +102,8 @@ export type AiStatus = { enabled: boolean; configured: boolean; connected: boole
 export type AiRelevance = { checked: boolean; relevance: number | null; comment: string | null; model: string; message: string }
 
 const configuredBaseUrl = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_BASE_URL
-export const API_BASE_URL = (configuredBaseUrl || 'http://109.196.167.225:8080').replace(/\/$/, '')
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+export const API_BASE_URL = (configuredBaseUrl || (isLocal ? 'http://109.196.167.225:8080' : 'https://krasnoyarsk.calonders.ru')).replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number
@@ -113,11 +116,13 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = typeof window !== 'undefined' ? window.localStorage.getItem('krasnopars-token') : null
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
       ...(init?.body ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })

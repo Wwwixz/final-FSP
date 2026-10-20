@@ -99,7 +99,7 @@ body:has(.search-page) .page-content--flush{isolation:isolate;overflow:hidden;pa
 .ptile-name{color:#3c495e;font-size:10.5px;font-weight:600;white-space:nowrap}
 .adv-link{display:inline-flex;align-self:flex-end;align-items:center;gap:7px;margin-top:11px;border:0;background:none;padding:0;color:#2c67e0;font-size:11.5px;font-weight:600}
 .adv-link:hover{text-decoration:underline}
-.pl-badge{display:inline-grid;place-items:center;border-radius:22%;color:#fff;font-weight:800;letter-spacing:.3px}
+.pl-badge{display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%;border-radius:22%;color:#fff;font-weight:800;letter-spacing:.3px;line-height:1}
 .pl-vk{overflow:hidden;background:transparent}.pl-vk img{display:block;width:100%;height:100%;object-fit:contain}
 .pl-ok{background:#f7931e;box-shadow:inset 0 0 0 1px #ffb25c}
 .pl-max{background:linear-gradient(135deg,#28c5f5 0%,#2768f5 38%,#7131ee 73%,#bb54df 100%)}
