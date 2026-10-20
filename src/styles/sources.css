@@ -1,52 +1,252 @@
-﻿/* Sources screen вЂ” mirrors design/РСЃС‚РѕС‡РЅРёРєРё_РІР°СЂРёР°РЅС‚.png. */
-body:has(.sources-shell) .topbar{display:none}
-body:has(.sources-shell) .page-content{max-width:none;min-height:100vh;padding:10px;background:linear-gradient(135deg,#f4f8fc,#edf4f8)}
-.sources-shell{min-height:calc(100vh - 20px);overflow:hidden;border:1px solid #dfe8f1;border-radius:13px;background:#fff;box-shadow:0 5px 22px #18304b0b}
-.sources-page-head{padding:21px 28px 18px;border-bottom:1px solid #e8edf3}
-.sources-page-head h1{margin:0;color:#0d2342;font:800 24px 'Manrope',sans-serif;letter-spacing:-.6px}
-.sources-page-head p{margin:6px 0 0;color:#8290a5;font-size:11px}
-.sources-toolbar{display:flex;align-items:center;justify-content:space-between;gap:20px;padding:10px 20px 0}
-.sources-toolbar .tabs{align-self:stretch;gap:18px}
-.sources-toolbar .tabs button{padding:13px 2px 12px;color:#34445c;font-size:10px;font-weight:600}
-.sources-toolbar .tabs button.tab-active{border-bottom-color:#e52543;color:#142844}
-.sources-toolbar .tabs button span{background:#edf1f6;color:#66758a}
-.sources-toolbar .tabs button.tab-active span{background:#edf1f6;color:#66758a}
-.sources-tools{display:flex;align-items:center;gap:10px}
-.sources-tools .table-search{width:210px;height:36px;border-color:#dce4ed;border-radius:5px}
-.sources-tools .button-primary{min-height:36px;border-radius:5px;padding:0 15px;font-size:10px}
-.sources-table-wrap{margin:0 20px 22px;overflow:visible;border:1px solid #e2e9f0;border-radius:7px}
-.sources-table{table-layout:auto}
-.sources-table thead{background:#f4f7fa}
-.sources-table th{height:38px;color:#617087;font-size:9px;text-transform:none;letter-spacing:0}
-.sources-table th:first-child,.sources-table td:first-child{width:38px;padding-left:13px;padding-right:7px}
-.sources-table th:last-child,.sources-table td:last-child{width:120px;text-align:center}
-.sources-table td{height:53px;border-top:1px solid #e9eef3;color:#405068;font-size:10px}
-.sources-table tbody tr:hover{background:#fbfcfe}
-.sources-table .source-cell{gap:10px}
-.sources-table .source-avatar{width:31px;height:31px;border:2px solid #e4eaf1;border-radius:50%;font-size:10px;box-shadow:inset 0 0 0 2px #ffffff38}
-.sources-table .source-cell b{font-size:10px;font-weight:600}
-.source-platform{display:inline-grid;place-items:center;width:21px;height:21px;border-radius:4px;font-size:8px;font-weight:800}
-.sources-table .status-pill{padding:5px 8px;background:#dcf7e8;color:#23965e;font-size:8px}
-.sources-table .status-off{background:#eef1f4;color:#7f8a99}
-.source-actions{position:relative;display:flex;align-items:center;justify-content:center;gap:18px}
-.source-actions .switch{width:34px;height:18px;padding:2px}
-.source-actions .switch i{width:14px;height:14px}
-.source-actions .switch-on i{transform:translateX(16px)}
-.source-actions details{position:relative}
-.source-actions summary{display:grid;place-items:center;width:27px;height:27px;border-radius:5px;color:#304057;list-style:none;cursor:pointer}
-.source-actions summary::-webkit-details-marker{display:none}
-.source-actions summary:hover{background:#eef2f6}
-.source-actions details>div{position:absolute;z-index:8;top:31px;right:0;width:115px;border:1px solid #e1e7ed;border-radius:7px;background:#fff;padding:5px;box-shadow:0 10px 25px #17294220;text-align:left}
-.source-actions details button{display:block;width:100%;border:0;border-radius:4px;background:none;padding:7px 8px;color:#425168;text-align:left;font-size:9px}
-.source-actions details button:hover{background:#f2f5f8}
-.source-actions details button.danger-action{color:#dc2943}
-.source-modal-error{display:flex;align-items:flex-start;gap:9px;margin:0 0 14px;border:1px solid #f1c2c8;border-radius:8px;background:#fff3f4;padding:10px 11px;color:#bd263e;font-size:12px;line-height:1.45}
-.source-modal-error>svg{flex:none;margin-top:1px}
-.source-modal-error span{flex:1;overflow-wrap:anywhere}
-.source-modal-error button{display:grid;flex:none;place-items:center;border:0;background:transparent;padding:0;color:inherit}
-html[data-theme='dark'] .source-modal-error{border-color:#8b4050;background:#3b2333;color:#ffb6c2}
-@media(max-width:950px){.sources-toolbar{align-items:stretch;flex-direction:column;gap:0}.sources-tools{padding:10px 0}.sources-tools .table-search{flex:1;width:auto}.sources-table-wrap{overflow-x:auto}.sources-table{min-width:780px}}
-@media(max-width:600px){body:has(.sources-shell) .page-content{padding:7px}.sources-shell{min-height:calc(100vh - 14px)}.sources-page-head{padding:18px 16px 15px}.sources-page-head h1{font-size:22px}.sources-toolbar{padding:7px 12px 0}.sources-toolbar .tabs{width:100%;overflow-x:auto}.sources-toolbar .tabs button{white-space:nowrap}.sources-tools{align-items:stretch;flex-direction:column}.sources-tools .button-primary{width:100%}.sources-table-wrap{margin:0 12px 15px}}
+/* Sources screen styles. */
+.repository-sources {
+  width: min(960px, 92%);
+  margin: 0 auto;
+}
+
+.repository-source-heading {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 24px;
+}
+
+.repository-source-heading h1 {
+  margin: 8px 0 0;
+  color: #fff;
+  font: 800 32px 'Manrope', sans-serif;
+  letter-spacing: -0.8px;
+}
+
+.repository-source-heading p {
+  margin: 8px 0 0;
+  color: rgba(255, 255, 255, 0.6);
+  font-size: 14px;
+}
+
+.repository-kicker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.repository-source-heading button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 44px;
+  padding: 0 20px;
+  border: 0;
+  border-radius: 10px;
+  background: #3b82f6;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 700;
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.25);
+  transition: transform 0.15s, filter 0.15s;
+}
+
+.repository-source-heading button:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+
+.repository-source-list {
+  background: rgba(13, 27, 49, 0.65);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.3);
+}
+
+.repository-source-list-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 24px 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.repository-source-list-head h2 {
+  margin: 0;
+  color: #fff;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.repository-source-list-head p {
+  margin: 4px 0 0;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+}
+
+.repository-source-list-head button {
+  background: transparent;
+  border: 0;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.repository-source-list-head button:hover {
+  color: #94a3b8;
+}
+
+.repository-source-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 28px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background 0.15s;
+}
+
+.repository-source-row:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.repository-check {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  border: 1.5px solid rgba(255, 255, 255, 0.2);
+  border-radius: 5px;
+  background: transparent;
+  color: transparent;
+  transition: 0.15s;
+}
+
+.repository-check.checked {
+  background: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+.repository-source-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  display: grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+}
+
+.source-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.repository-source-copy {
+  flex: 1;
+  min-width: 0;
+}
+
+.repository-source-copy button {
+  display: block;
+  background: transparent;
+  border: 0;
+  padding: 0;
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  text-align: left;
+  margin-bottom: 4px;
+}
+
+.repository-source-copy a {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 11px;
+  text-decoration: none;
+}
+
+.repository-source-copy a:hover {
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.repository-platform {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.repository-platform.vk { background: rgba(82, 120, 217, 0.15); color: #7396ed; border-color: rgba(82, 120, 217, 0.3); }
+.repository-platform.ok { background: rgba(233, 138, 53, 0.15); color: #f59a4c; border-color: rgba(233, 138, 53, 0.3); }
+.repository-platform.max { background: rgba(115, 88, 206, 0.15); color: #9a83eb; border-color: rgba(115, 88, 206, 0.3); }
+
+.repository-followers {
+  width: 60px;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 12px;
+  text-align: right;
+}
+
+.repository-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100px;
+  color: #10b981;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.repository-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 8px currentColor;
+}
+
+.repository-status.offline {
+  color: #64748b;
+}
+
+.repository-delete {
+  background: transparent;
+  border: 0;
+  color: rgba(255, 255, 255, 0.3);
+  font-size: 20px;
+  padding: 4px;
+  line-height: 1;
+}
+
+.repository-delete:hover {
+  color: #ef4444;
+}
+
+.repository-source-note {
+  padding: 16px 28px;
+  background: rgba(0, 0, 0, 0.1);
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 12px;
+}
+
+/* Fix background for sources page */
+body:has(.repository-sources) .main-area {
+  background: transparent !important;
+}
 
 /* Shared sidebar details from the supplied screens. */
 .brand-card{align-items:flex-start;margin-bottom:22px;padding-top:2px}
