@@ -1238,6 +1238,7 @@ function SavedPage({ items, onOpen, onRemove, onRemoveAll, onClearFavorites, onN
   const [openActionsId, setOpenActionsId] = useState<number | null>(null)
   const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
   const [queryFilter, setQueryFilter] = useState('')
+  const [queryDraft, setQueryDraft] = useState('')
   const [favoriteFilter, setFavoriteFilter] = useState(false)
   const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest')
   useEffect(() => {
@@ -1261,7 +1262,7 @@ function SavedPage({ items, onOpen, onRemove, onRemoveAll, onClearFavorites, onN
   return <section className="saved-shell">
     <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>История поисков и быстрый доступ к результатам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
     <div className="saved-toolbar">
-      <label className="saved-filter-search"><Search size={15}/><input value={queryFilter} onChange={event => setQueryFilter(event.target.value)} placeholder="Найти запрос…" aria-label="Найти сохранённый запрос"/></label>
+      <form className="saved-filter-search" onSubmit={event => { event.preventDefault(); setQueryFilter(queryDraft) }}><Search size={15}/><input value={queryDraft} onChange={event => setQueryDraft(event.target.value)} placeholder="Найти запрос…" aria-label="Найти сохранённый запрос"/><button type="submit" className="saved-filter-submit" aria-label="Найти"><Search size={16}/></button></form>
       <div className="saved-filter-tabs"><button className={!favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(false)}>Все <span>{items.length}</span></button><button className={favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(true)}><Star size={12}/>Избранное <span>{favoriteCount}</span></button></div>
       <label className="saved-select-filter saved-sort-filter"><span>Сортировка</span><select value={sortBy} onChange={event => setSortBy(event.target.value as typeof sortBy)}><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option></select></label>
     </div>

@@ -9,8 +9,8 @@ body:has(.settings-shell) .page-content{max-width:none;min-height:100vh;padding:
 .settings-shell .settings-tabs button{padding:13px 2px 12px;color:#536178;font-size:10px;font-weight:600}
 .settings-shell .settings-tabs button.settings-tab-active{border-bottom-color:#e52443;color:#142844}
 .settings-shell .settings-body{max-width:none;min-height:0;padding:0 24px}
-.settings-form{max-width:900px}
-.settings-row{position:relative;display:grid;grid-template-columns:170px minmax(260px,440px);column-gap:16px;padding:20px 0;border-bottom:1px solid #edf1f5}
+.settings-form{width:100%;max-width:none}
+.settings-row{position:relative;display:grid;grid-template-columns:220px minmax(0,1fr);column-gap:24px;padding:20px 0;border-bottom:1px solid #edf1f5}
 .settings-region-row{display:none}
 .settings-row:last-child{border-bottom:0}
 .settings-row>strong{padding-top:3px;color:#172a46;font-size:11px;font-weight:700}
