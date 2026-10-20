@@ -138,7 +138,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
   if (!response.ok) {
     // Истёкший или отозванный токен: сбрасываем сессию и просим войти заново.
-    if (response.status === 401 && !path.startsWith('/api/auth/')) {
+    if (response.status === 401 && token && !path.startsWith('/api/auth/')) {
       window.localStorage.removeItem('krasnopars-token')
       window.dispatchEvent(new Event('krasnopars-unauthorized'))
     }

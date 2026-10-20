@@ -11,6 +11,8 @@ import {
 import platformVkIcon from './assets/platform-vk.png'
 import platformOkIcon from './assets/platform-ok.png'
 import platformMaxIcon from './assets/platform-max.png'
+import platformTgIcon from './assets/platform-tg.svg'
+import platformDzenIcon from './assets/platform-dzen.svg'
 
 type Page = 'login' | 'register' | 'results' | 'publication' | 'sources' | 'saved' | 'analytics' | 'settings'
 type Platform = 'VK' | 'OK' | 'MAX' | 'TG' | 'SITE' | 'DZEN'
@@ -78,7 +80,15 @@ const initialSources: Source[] = [
   { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', logoUrl: null, followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
 const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX', TG: 'Telegram', SITE: 'Сайты', DZEN: 'Дзен' }
-const platformIcon: Partial<Record<Platform, string>> = { VK: platformVkIcon, OK: platformOkIcon, MAX: platformMaxIcon }
+const sourceUrlPlaceholder: Record<Platform, string> = {
+  VK: 'vk.com/community',
+  OK: 'ok.ru/group/123456',
+  MAX: 'max.ru/channel',
+  TG: 't.me/channel',
+  SITE: 'https://example.com/',
+  DZEN: 'dzen.ru/channel',
+}
+const platformIcon: Partial<Record<Platform, string>> = { VK: platformVkIcon, OK: platformOkIcon, MAX: platformMaxIcon, TG: platformTgIcon, DZEN: platformDzenIcon }
 const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2026', 'развитие спорта']
 
 const platformColor: Record<Platform, string> = { VK: '#5278d9', OK: '#e98a35', MAX: '#7358ce', TG: '#2aabee', SITE: '#4d7cc7', DZEN: '#4a4a4f' }
@@ -115,14 +125,27 @@ const mapPublication = (publication: ApiPublication): Publication => ({
   aiComment: publication.aiComment,
 })
 
+const loadSearchPublications = async (searchId: number): Promise<{ items: Publication[]; total: number }> => {
+  const firstPage = await api.publications(searchId)
+  const items = [...firstPage.content]
+  for (let page = 1; page < firstPage.totalPages; page += 1) {
+    const nextPage = await api.publications(searchId, page)
+    items.push(...nextPage.content)
+  }
+  return { items: items.map(mapPublication), total: firstPage.totalElements }
+}
+
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить запрос к API.'
 
 const hasStoredToken = () => typeof window !== 'undefined' && Boolean(window.localStorage.getItem('krasnopars-token'))
+const guestSessionKey = 'krasnopars-guest'
+const hasGuestSession = () => typeof window !== 'undefined' && window.localStorage.getItem(guestSessionKey) === 'true'
 
 function App() {
   const [isAuthChecking, setIsAuthChecking] = useState(hasStoredToken())
-  const [page, setPage] = useState<Page>(() => (hasStoredToken() ? 'results' : 'login'))
+  const [page, setPage] = useState<Page>(() => (hasStoredToken() || hasGuestSession() ? 'results' : 'login'))
   const [user, setUser] = useState<AuthResponse['user'] | null>(null)
+  const [guestMode, setGuestMode] = useState(() => !hasStoredToken() && hasGuestSession())
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
   const [periodStart, setPeriodStart] = useState('2001-01-01')
@@ -132,6 +155,7 @@ function App() {
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
   const [searchMode, setSearchMode] = useState<'BY_SOURCES' | 'ALL_PLATFORMS'>('BY_SOURCES')
   const [sources, setSources] = useState<Source[]>(initialSources)
+  const [deselectedSourceIds, setDeselectedSourceIds] = useState<number[]>([])
   const [results, setResults] = useState<Publication[]>([])
   const [searchId, setSearchId] = useState<number | null>(null)
   const [, setSearchStatus] = useState<ApiSearch['status'] | null>(null)
@@ -152,27 +176,44 @@ function App() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode)
   const [cityBackground, setCityBackground] = useState<CityBackground>(() => getCityBackground(themeMode))
-  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
-
-  useEffect(() => {
-    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
-  }, [customLinks])
 
   const handleLogout = async () => {
-    try {
-      await api.auth.logout()
-    } catch (e) {
-      console.error('Logout failed', e)
+    if (!guestMode) {
+      try {
+        await api.auth.logout()
+      } catch (e) {
+        console.error('Logout failed', e)
+      }
     }
     window.localStorage.removeItem('krasnopars-token')
+    window.localStorage.removeItem(guestSessionKey)
     setUser(null)
+    setGuestMode(false)
+    setSaved([])
+    setResults([])
+    setSearchId(null)
+    setHasSearched(false)
     setPage('login')
     setProfileMenuOpen(false)
   }
 
+  const handleGuestLogin = () => {
+    window.localStorage.removeItem('krasnopars-token')
+    window.localStorage.setItem(guestSessionKey, 'true')
+    setUser(null)
+    setGuestMode(true)
+    setSaved([])
+    setResults([])
+    setSearchId(null)
+    setHasSearched(false)
+    setPage('results')
+  }
+
   const handleAuthDone = (userData: AuthResponse) => {
     window.localStorage.setItem('krasnopars-token', userData.token)
+    window.localStorage.removeItem(guestSessionKey)
     setUser(userData.user)
+    setGuestMode(false)
     setPage('results')
   }
 
@@ -188,7 +229,9 @@ function App() {
         setUser(userData)
       } catch (e) {
         window.localStorage.removeItem('krasnopars-token')
+        window.localStorage.removeItem(guestSessionKey)
         setUser(null)
+        setGuestMode(false)
         setPage('login')
       } finally {
         setIsAuthChecking(false)
@@ -200,6 +243,7 @@ function App() {
   useEffect(() => {
     const onUnauthorized = () => {
       setUser(null)
+      setGuestMode(false)
       setPage('login')
     }
     window.addEventListener('krasnopars-unauthorized', onUnauthorized)
@@ -230,11 +274,11 @@ function App() {
   }, [notice])
 
   useEffect(() => {
-    if (isAuthChecking) return
+    if (isAuthChecking || (!user && !guestMode)) return
     let cancelled = false
     const loadApiData = async () => {
       try {
-        const [sourceResult, savedResult, regionResult] = await Promise.allSettled([api.sources(), api.savedQueries(), api.regions()])
+        const [sourceResult, savedResult, regionResult] = await Promise.allSettled([api.sources(), guestMode ? Promise.resolve([]) : api.savedQueries(), api.regions()])
         void Promise.allSettled([api.health(), api.platforms(), api.aiStatus()])
 
         if (cancelled) return
@@ -263,7 +307,7 @@ function App() {
     }
     void loadApiData()
     return () => { cancelled = true }
-  }, [user, isAuthChecking])
+  }, [user, guestMode, isAuthChecking])
 
   const togglePlatform = (platform: Platform) => setPlatforms(current => current.includes(platform) ? current.filter(value => value !== platform) : [...current, platform])
   const updateQuery = (value: string) => {
@@ -279,12 +323,8 @@ function App() {
     setApiError('')
   }
   const executeSearch = async (params: { query: string; dateFrom?: string; dateTo?: string; region?: string }) => {
-    const trimmedLinks = customLinks.map(link => link.url.trim()).filter(Boolean)
-    const platformSourceIds = searchMode === 'ALL_PLATFORMS'
-      ? []
-      : sources.filter(source => source.active && platforms.includes(source.platform)).map(source => source.id)
-    if (searchMode === 'BY_SOURCES' && !platformSourceIds.length && !trimmedLinks.length) {
-      setApiError('Выберите хотя бы одну площадку или добавьте ссылку на сайт.')
+    if (searchMode === 'BY_SOURCES' && platforms.length === 0) {
+      setApiError('Выберите хотя бы одну площадку для поиска.')
       return
     }
 
@@ -294,37 +334,21 @@ function App() {
     setIsSearching(true)
     setHasSearched(true)
     setPage('results')
-    setResults([])
     try {
-      // Ссылки на произвольные сайты сохраняются как источники площадки SITE
-      // и участвуют в поиске наравне с выбранными площадками.
-      const customSourceIds: number[] = []
-      const addedSources: Source[] = []
-      for (const rawUrl of trimmedLinks) {
-        const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
-        const existing = sources.find(source => source.url && source.url.toLowerCase() === url.toLowerCase())
-        if (existing) {
-          if (!customSourceIds.includes(existing.id)) customSourceIds.push(existing.id)
-          continue
-        }
-        try {
-          const host = (() => { try { return new URL(url).host || url } catch { return url } })()
-          const createdSource = await api.createSource({ name: host, platform: 'SITE', url, active: true })
-          const mapped = mapSource(createdSource)
-          customSourceIds.push(mapped.id)
-          addedSources.push(mapped)
-        } catch (error) {
-          if (error instanceof ApiError && /существов/i.test(error.message)) {
-            const all = await api.sources()
-            const match = all.find(source => source.url && source.url.toLowerCase() === url.toLowerCase())
-            if (match && !customSourceIds.includes(match.id)) customSourceIds.push(match.id)
-          } else {
-            throw error
-          }
+      // Источники могли измениться после открытия страницы, поэтому берём актуальные ID перед поиском.
+      let sourceIds: number[] = []
+      if (searchMode === 'BY_SOURCES') {
+        const currentSources = await api.sources()
+        if (searchRunRef.current !== runId) return
+        setSources(currentSources.map(mapSource))
+        sourceIds = currentSources
+          .filter(source => source.active && platforms.includes(source.platform) && !deselectedSourceIds.includes(source.id))
+          .map(source => source.id)
+        if (sourceIds.length === 0) {
+          setApiError('Для выбранных площадок нет отмеченных активных источников. Отметьте источники на вкладке «Источники» или выберите другую площадку.')
+          return
         }
       }
-      if (addedSources.length) setSources(current => [...current, ...addedSources.filter(add => !current.some(source => source.id === add.id))])
-      const sourceIds = searchMode === 'ALL_PLATFORMS' ? [] : [...platformSourceIds, ...customSourceIds]
       const created = await api.createSearch({
         query: params.query,
         searchType: 'TOPIC',
@@ -343,12 +367,12 @@ function App() {
       if (searchRunRef.current !== runId) return
       setSearchStatus(completed.status)
       if (completed.status === 'FAILED') throw new Error(completed.error || 'Поиск завершился с ошибкой.')
-      const publicationPage = await api.publications(created.id)
+      const publicationPage = await loadSearchPublications(created.id)
       if (searchRunRef.current !== runId) return
-      setResults(publicationPage.content.map(mapPublication))
+      setResults(publicationPage.items)
       setNotice(completed.status === 'COMPLETED_PARTIAL'
-        ? `Поиск завершён частично: найдено ${publicationPage.totalElements} публикаций, часть источников недоступна.`
-        : `Поиск завершён: найдено ${publicationPage.totalElements} публикаций.`)
+        ? `Поиск завершён частично: найдено ${publicationPage.total} публикаций, часть источников недоступна.`
+        : `Поиск завершён: найдено ${publicationPage.total} публикаций.`)
     } catch (error) {
       if (searchRunRef.current !== runId) return
       setSearchStatus('FAILED')
@@ -390,8 +414,8 @@ function App() {
       if (existing) {
         setSearchId(existing.id)
         setSearchStatus(existing.status)
-        const publicationPage = await api.publications(existing.id)
-        setResults(publicationPage.content.map(mapPublication))
+        const publicationPage = await loadSearchPublications(existing.id)
+        setResults(publicationPage.items)
         setNotice(`Загружены результаты последнего поиска по этому запросу (№${existing.id})`)
         setIsSearching(false)
         return
@@ -423,13 +447,23 @@ function App() {
         : await api.updateSource(sourceEdit, { ...payload, active: sources.find(item => item.id === sourceEdit)?.active ?? true })
       const mapped = mapSource(savedSource)
       setSources(current => sourceEdit === null ? [mapped, ...current] : current.map(item => item.id === sourceEdit ? mapped : item))
+      if (sourceEdit === null) setDeselectedSourceIds(current => current.filter(id => id !== mapped.id))
       setSourceModal(false)
       setNotice(sourceEdit === null ? 'Источник добавлен через API.' : 'Источник обновлён через API.')
     } catch (error) {
       setSourceError(getErrorMessage(error))
     }
   }
-  const toggleSource = async (id: number) => {
+  const toggleSourceSelection = (id: number) => {
+    setDeselectedSourceIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  }
+  const toggleAllSourceSelection = (selected: boolean) => {
+    const activeIds = sources.filter(source => source.active).map(source => source.id)
+    setDeselectedSourceIds(current => selected
+      ? current.filter(id => !activeIds.includes(id))
+      : [...new Set([...current, ...activeIds])])
+  }
+  const toggleSourceActive = async (id: number) => {
     const source = sources.find(item => item.id === id)
     if (!source) return
     setApiError('')
@@ -440,24 +474,33 @@ function App() {
       setApiError(getErrorMessage(error))
     }
   }
-  const toggleAllSources = async (active: boolean) => {
-    const targets = sources.filter(source => source.active !== active)
-    if (!targets.length) return
-    const outcomes = await Promise.allSettled(targets.map(source => api.updateSource(source.id, { name: source.name, platform: source.platform, url: source.url, active })))
-    const updated = outcomes.flatMap(outcome => outcome.status === 'fulfilled' ? [mapSource(outcome.value)] : [])
-    setSources(current => current.map(source => updated.find(item => item.id === source.id) ?? source))
-    const failures = outcomes.filter(outcome => outcome.status === 'rejected').length
-    if (failures) setApiError(`Не удалось изменить ${failures} источн${failures === 1 ? 'ик' : 'иков'}.`)
-  }
   const deleteSource = async (id: number) => {
     setApiError('')
     try {
       await api.deleteSource(id)
       setSources(current => current.filter(item => item.id !== id))
+      setDeselectedSourceIds(current => current.filter(value => value !== id))
       setNotice('Источник удалён через API.')
     } catch (error) {
       setApiError(getErrorMessage(error))
     }
+  }
+  const deleteAllSources = async () => {
+    if (!sources.length || !window.confirm(`Удалить все источники (${sources.length})?`)) return
+    const deletedIds: number[] = []
+    let failures = 0
+    for (const source of sources) {
+      try {
+        await api.deleteSource(source.id)
+        deletedIds.push(source.id)
+      } catch {
+        failures += 1
+      }
+    }
+    setSources(current => current.filter(source => !deletedIds.includes(source.id)))
+    setDeselectedSourceIds(current => current.filter(id => !deletedIds.includes(id)))
+    if (failures) setApiError(`Не удалось удалить ${failures} источн${failures === 1 ? 'ик' : 'иков'}.`)
+    else setNotice('Все источники удалены.')
   }
   const removeSaved = async (id: number) => {
     setApiError('')
@@ -537,7 +580,7 @@ function App() {
     </div>
   </div>
 
-  if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={handleAuthDone}/>
+  if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={handleAuthDone} onGuest={handleGuestLogin}/>
   return <div className="app-shell" data-city-background={cityBackground}>
     <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
@@ -569,14 +612,21 @@ function App() {
           results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching}
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
-          onSubmit={runSearch} onExport={exportResults} searchMode={searchMode} setSearchMode={setSearchMode} onOpen={item => { setSelectedPublication(item); setPage('publication') }}
-          customLinks={customLinks} setCustomLinks={setCustomLinks}
+          onSubmit={runSearch} onExport={exportResults} searchMode={searchMode} setSearchMode={setSearchMode} onOpen={item => { setSelectedPublication(item); setPage('publication'); window.scrollTo(0, 0) }}
           onSave={saveCurrentSearch}
         />}
-        {page === 'publication' && selectedPublication && (
-          <PublicationPage item={selectedPublication} onBack={() => setPage('results')}/>
-        )}
-        {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onToggleAll={toggleAllSources} onDelete={deleteSource}/>}
+        {page === 'publication' && selectedPublication && <PublicationPage
+          item={selectedPublication}
+          position={results.findIndex(result => result.id === selectedPublication.id)}
+          total={results.length}
+          onNavigate={offset => {
+            const index = results.findIndex(result => result.id === selectedPublication.id)
+            const next = results[index + offset]
+            if (next) { setSelectedPublication(next); window.scrollTo(0, 0) }
+          }}
+          onBack={() => setPage('results')}
+        />}
+        {page === 'sources' && <SourcesPage sources={sources} deselectedSourceIds={deselectedSourceIds} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggleSelection={toggleSourceSelection} onToggleAllSelection={toggleAllSourceSelection} onToggleActive={toggleSourceActive} onDelete={deleteSource} onDeleteAll={deleteAllSources}/>}
         {page === 'saved' && <SavedPage
           items={saved} onOpen={openSaved} onRemove={removeSaved} onRemoveAll={removeAllSaved} onClearFavorites={clearAllFavorites}
           onNew={() => { setQuery(''); setHasSearched(false); setPage('results') }}
@@ -586,17 +636,53 @@ function App() {
         {page === 'settings' && <SettingsPage tab={settingsTab} setTab={setSettingsTab} region={region} setRegion={setRegion} themeMode={themeMode} setThemeMode={setThemeMode} onSave={() => { setSettingsSaved(true); window.setTimeout(() => setSettingsSaved(false), 2500) }} saved={settingsSaved}/>}
       </div>
     </main>
-    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}><div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div><label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label><label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="vk.com/community"/></label><label>Площадка<select value={sourcePlatform} onChange={event => setSourcePlatform(event.target.value as Platform)}>{(['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN'] as Platform[]).map(platform => <option key={platform} value={platform}>{platformLabel[platform]}</option>)}</select></label>{sourceError && <p className="source-modal-error" role="alert">{sourceError}</p>}<div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div></form></div>}
+    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}>
+      <div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div>
+      <label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label>
+      <label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder={sourceUrlPlaceholder[sourcePlatform]}/></label>
+      <div className="source-platform-field"><span>Площадка</span><SourcePlatformPicker value={sourcePlatform} onChange={setSourcePlatform}/></div>
+      {sourceError && <p className="source-modal-error" role="alert">{sourceError}</p>}
+      <div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div>
+    </form></div>}
   </div>
 }
 
-function AuthScreen({ mode, cityBackground, onSwitch, onDone }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void }) {
+function SourcePlatformPicker({ value, onChange }: { value: Platform; onChange: (platform: Platform) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const options: Platform[] = ['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN']
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setOpen(false); triggerRef.current?.focus() }
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape) }
+  }, [open])
+
+  return <span ref={rootRef} className={`source-platform-select ${open ? 'is-open' : ''}`}>
+    <button ref={triggerRef} type="button" className="source-platform-trigger" aria-label="Выбрать площадку" aria-expanded={open} onClick={() => setOpen(current => !current)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true) } }}>
+      <PlatformBadge platform={value} size={28}/><span>{platformLabel[value]}</span><ChevronDown className="source-platform-chevron" size={18} aria-hidden="true"/>
+    </button>
+    {open && <div className="source-platform-options" aria-label="Площадки">
+      {options.map(platform => <button key={platform} type="button" className={platform === value ? 'selected' : ''} onClick={() => { onChange(platform); setOpen(false); triggerRef.current?.focus() }}><PlatformBadge platform={platform} size={25}/><span>{platformLabel[platform]}</span>{platform === value && <Check size={17} aria-hidden="true"/>}</button>)}
+    </div>}
+  </span>
+}
+
+function AuthScreen({ mode, cityBackground, onSwitch, onDone, onGuest }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void; onGuest: () => void }) {
   return <div className={`auth-screen auth-screen--${mode}`} data-city-background={cityBackground}>
     <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
     </video>
     <div className="auth-logo"><img className="auth-emblem" src="/favicon.png" alt="Герб Красноярского края со львом"/><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
-    {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
+    {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone} onGuest={onGuest}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
   </div>
 }
 
@@ -613,7 +699,7 @@ function AuthCheck({ checked, onChange, label, variant }: { checked: boolean; on
   return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} className={`auth-check auth-check-${variant} ${checked ? 'auth-check-on' : ''}`} onClick={onChange}><Check size={14} strokeWidth={3.2}/></button>
 }
 
-function AuthLoginForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void }) {
+function AuthLoginForm({ onSwitch, onDone, onGuest }: { onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void; onGuest: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
@@ -645,6 +731,7 @@ function AuthLoginForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'regis
     <div className="auth-row"><AuthCheck checked={remember} onChange={() => setRemember(!remember)} label="Запомнить меня" variant="solid"/><span>Запомнить меня</span></div>
     {error && <p className="auth-error">{error}</p>}
     <button className="auth-submit" disabled={loading}>{loading ? 'Вход...' : 'Войти'}</button>
+    <button type="button" className="auth-guest" onClick={onGuest}>Войти как гость</button>
     <p className="auth-alt">Нет аккаунта? <button type="button" onClick={() => onSwitch('register')}>Зарегистрироваться</button></p>
   </form>
 }
@@ -820,12 +907,14 @@ function RegionDropdown({ value, options, onChange, className = '' }: { value: s
   </div>
 }
 
-function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false, searchMode, setSearchMode, customLinks, setCustomLinks }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void; customLinks: CustomSearchLink[]; setCustomLinks: (action: CustomSearchLink[] | ((current: CustomSearchLink[]) => CustomSearchLink[])) => void }) {
+function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false, searchMode, setSearchMode }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
   const [officialOnly, setOfficialOnly] = useState(false)
   const [withMedia, setWithMedia] = useState(false)
   const [excludeReposts, setExcludeReposts] = useState(false)
+  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
   const focusCustomLinkRef = useRef<string | null>(null)
   useEffect(() => {
+    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
     if (focusCustomLinkRef.current) {
       document.getElementById(`custom-search-link-${focusCustomLinkRef.current}`)?.focus()
       focusCustomLinkRef.current = null
@@ -851,7 +940,7 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
       <div className="platform-switch-container">
         <span>Площадки</span>
         <div className="platform-picker-row">
-          <div className={`platform-switch platform-switch-with-links ${customLinks.length > 1 ? 'platform-switch-with-link-rows' : ''}`}>
+          <div className={`platform-switch platform-switch-with-links ${customLinks.length > 0 ? 'platform-switch-with-link-rows' : ''}`}>
             {(['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN'] as Platform[]).map(item => (
               <button
                 type="button"
@@ -863,8 +952,7 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
                 <span>{item}</span>
               </button>
             ))}
-            {customLinks[0] && renderCustomLink(customLinks[0], 0)}
-            {customLinks.length > 1 && <div className="platform-custom-link-grid">{customLinks.slice(1).map((link, index) => renderCustomLink(link, index + 1))}</div>}
+            {customLinks.length > 0 && <div className="platform-custom-link-grid">{customLinks.map(renderCustomLink)}</div>}
           </div>
           <button type="button" className="platform-add-link" aria-label="Добавить ссылку на сайт" title="Добавить ссылку на сайт" onClick={addCustomLink}><Plus size={19}/></button>
         </div>
@@ -945,7 +1033,7 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
 }
 function Toggle({ checked, onChange, title, description }: { checked: boolean; onChange: () => void; title: string; description: string }) { return <div className="toggle-row"><div><b>{title}</b><span>{description}</span></div><button type="button" className={`switch ${checked ? 'switch-on' : ''}`} onClick={onChange} role="switch" aria-checked={checked}><i/></button></div> }
 
-function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, onSave, searchMode, setSearchMode, customLinks, setCustomLinks }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; onSave: () => void; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void; customLinks: CustomSearchLink[]; setCustomLinks: (action: CustomSearchLink[] | ((current: CustomSearchLink[]) => CustomSearchLink[])) => void }) {
+function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, onSave, searchMode, setSearchMode }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; onSave: () => void; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
   const [resultPage, setResultPage] = useState(1)
   const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
   const [savedResult, setSavedResult] = useState(false)
@@ -970,13 +1058,13 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
     return () => observer.disconnect()
   }, [resultPage, pages])
   return <div className="design-page results-page">
-    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} searchMode={searchMode} setSearchMode={setSearchMode} isSearching={isSearching} customLinks={customLinks} setCustomLinks={setCustomLinks}/>
+    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} searchMode={searchMode} setSearchMode={setSearchMode} isSearching={isSearching}/>
     {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники.</p></div> : <>
     <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => { onSave(); setSavedResult(true) }} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
     <div className="results-summary-bar">
       <div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div>
       <div className="summary-filter"><MapPin size={15}/><span>{region}</span></div>
-      <span className="results-platform-summary">{(() => { const sites = customLinks.filter(link => link.url.trim()).length; const parts: string[] = [...platforms]; if (sites) parts.push(sites === 1 ? 'сайт' : `сайтов: ${sites}`); return parts.length ? parts.join(' · ') : 'Площадки не выбраны' })()}</span>
+      <span className="results-platform-summary">{platforms.length ? platforms.join(' · ') : 'Площадки не выбраны'}</span>
     </div>
     <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select></label></div>
       <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className={`result-photo publication-thumb ${item.image ? 'has-image' : 'no-image'}`}>{item.image ? <img className="media-photo" src={item.image} alt="" loading="lazy"/> : <span className="publication-thumb-empty"><ImageOff size={18}/></span>}<span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
@@ -987,17 +1075,38 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
   </div>
 }
 
-function PublicationPage({ item, onBack }: { item: Publication; onBack: () => void }) {
+function PublicationPage({ item, position, total, onNavigate, onBack }: { item: Publication; position: number; total: number; onNavigate: (offset: number) => void; onBack: () => void }) {
   const [liked, setLiked] = useState(false)
+  useEffect(() => { setLiked(false) }, [item.id])
+  const [savedIds, setSavedIds] = useState<number[]>(() => {
+    try {
+      const stored: unknown = JSON.parse(window.localStorage.getItem('krasnopars-saved-publications') || '[]')
+      return Array.isArray(stored) ? stored.filter((id): id is number => typeof id === 'number') : []
+    } catch {
+      return []
+    }
+  })
+  const saved = savedIds.includes(item.id)
+  const toggleSaved = () => setSavedIds(current => {
+    const next = current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id]
+    try { window.localStorage.setItem('krasnopars-saved-publications', JSON.stringify(next)) } catch { /* Storage may be unavailable. */ }
+    return next
+  })
 
   return <div className="publication-page">
-    <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+    <div className="publication-toolbar">
+      <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+      <div className="publication-navigation" aria-label="Навигация по публикациям">
+        <button type="button" aria-label="Предыдущая публикация" disabled={position <= 0} onClick={() => onNavigate(-1)}><ChevronLeft size={18}/></button>
+        <span>{position >= 0 ? position + 1 : '—'} из {total}</span>
+        <button type="button" aria-label="Следующая публикация" disabled={position < 0 || position >= total - 1} onClick={() => onNavigate(1)}><ChevronRight size={18}/></button>
+      </div>
+    </div>
     <div className="publication-layout">
       <article className="publication-card">
         <header className="publication-header">
-          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{item.source.slice(0, 1)}</div>
+          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{position >= 0 ? position + 1 : item.source.slice(0, 1)}</div>
           <div><strong>{item.source}</strong><span>{item.date}</span></div>
-          <span className={`publication-platform ${item.platform.toLowerCase()}`}><img className="pl-logo pl-logo-chip" src={platformIcon[item.platform]} width={14} height={14} alt=""/>{platformLabel[item.platform]}</span>
         </header>
         {item.image
           ? <img className="publication-cover" src={item.image} alt={item.title}/>
@@ -1015,10 +1124,27 @@ function PublicationPage({ item, onBack }: { item: Publication; onBack: () => vo
           <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
         </footer>
       </article>
-      <aside className="publication-info">
-        <h2>О публикации</h2>
-        <dl><div><dt>Источник</dt><dd>{item.source}</dd></div><div><dt>Площадка</dt><dd>{platformLabel[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.date}</dd></div><div><dt>Соответствие запросу</dt><dd>{item.kind}</dd></div></dl>
-        <button type="button"><Bookmark size={15}/>Сохранить публикацию</button>
+      <aside className="publication-aside-column">
+        <section className="publication-info">
+          <div className="publication-info-heading"><span><Newspaper size={20}/></span><div><h2>О публикации</h2><p>Основные сведения</p></div></div>
+          <dl>
+            <div className="publication-info-row"><span className="publication-info-icon"><Users size={17}/></span><div className="publication-info-copy"><dt>Источник</dt><dd>{item.source}</dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><PlatformBadge platform={item.platform} size={20}/></span><div className="publication-info-copy"><dt>Площадка</dt><dd><span className={`publication-info-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span></dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><CalendarDays size={17}/></span><div className="publication-info-copy"><dt>Дата публикации</dt><dd>{item.date}</dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><Check size={17}/></span><div className="publication-info-copy"><dt>Соответствие запросу</dt><dd><span className="publication-info-match">{item.kind}</span></dd></div></div>
+          </dl>
+          <button type="button" className={`publication-primary-action ${saved ? 'publication-saved' : ''}`} onClick={toggleSaved}><Bookmark size={16}/>{saved ? 'Сохранено в браузере' : 'Сохранить публикацию'}</button>
+        </section>
+        <section className="publication-sentiment" aria-label="Эмоциональность публикации">
+          <div className="publication-sentiment-command">
+            <div className="publication-sentiment-heading"><span><TrendingUp size={20}/></span><div><h2>Эмоциональность</h2><p>Анализ тональности текста</p></div></div>
+            <div className="publication-sentiment-summary"><span><CircleHelp size={17}/></span><div><small>Общий тон</small><strong>Нет данных</strong></div></div>
+          </div>
+          <div className="publication-sentiment-bars">
+            {(['Позитивная', 'Нейтральная', 'Негативная'] as const).map(tone => <div className="sentiment-row" key={tone}><div><span>{tone}</span><b>—</b></div><i aria-hidden="true"/></div>)}
+            <p className="publication-sentiment-unavailable">Сервер пока не передаёт оценку тональности.</p>
+          </div>
+        </section>
       </aside>
     </div>
   </div>
@@ -1047,12 +1173,63 @@ function AnalyticsPage() {
   </div>
 }
 
-function SourcesPage({ sources, onAdd, onEdit, onToggle, onToggleAll, onDelete }: { sources: Source[]; onAdd: () => void; onEdit: (source: Source) => void; onToggle: (id: number) => void; onToggleAll: (active: boolean) => void; onDelete: (id: number) => void }) {
-  const allSelected = sources.length > 0 && sources.every(source => source.active)
-  return <section className="repository-sources"><div className="repository-source-heading"><div><div className="repository-kicker"><Users size={13}/>Справочник</div><h1>Источники публикаций</h1><p>Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={onAdd}><Plus size={15}/>Добавить источник</button></div>
-    <div className="panel repository-source-list"><div className="repository-source-list-head"><label className="repository-select-all"><input type="checkbox" aria-label="Выбрать все источники" checked={allSelected} disabled={!sources.length} onChange={() => onToggleAll(!allSelected)}/><span><h2>Мой список</h2><p>{sources.length} источников · нажмите, чтобы выбрать для поиска</p></span></label></div>
-      <div>{sources.map(source => <div key={source.id} className="repository-source-row"><button onClick={() => onToggle(source.id)} aria-label={`Выбрать ${source.name}`} className={`repository-check ${source.active ? 'checked' : ''}`}><Check size={12}/></button><button onClick={() => onEdit(source)} aria-label={`Редактировать ${source.name}`} className="repository-source-avatar repository-source-avatar--logo">{source.logoUrl ? <img src={source.logoUrl} alt="" className="source-avatar-img" /> : <PlatformBadge platform={source.platform} size={30}/>}</button><div className="repository-source-copy"><button onClick={() => onEdit(source)}>{source.name}</button><a href={source.url} target="_blank" rel="noreferrer">{source.url.replace(/^https?:\/\//, '')}<ExternalLink size={9}/></a></div><span className={`repository-platform ${source.platform.toLowerCase()}`}><PlatformBadge platform={source.platform} size={14}/>{platformLabel[source.platform]}</span><span className="repository-followers">{source.followers}</span><span className={`repository-status ${source.active ? '' : 'offline'}`}><i/>{source.active ? 'Доступен' : 'Отключён'}</span><button onClick={() => onDelete(source.id)} className="repository-delete" aria-label={`Удалить ${source.name}`}>×</button></div>)}</div>
-      <div className="repository-source-note">Сохранённые источники остаются в списке для следующих поисков.</div>
+function SourcesPage({ sources, deselectedSourceIds, onAdd, onEdit, onToggleSelection, onToggleAllSelection, onToggleActive, onDelete, onDeleteAll }: { sources: Source[]; deselectedSourceIds: number[]; onAdd: () => void; onEdit: (source: Source) => void; onToggleSelection: (id: number) => void; onToggleAllSelection: (selected: boolean) => void; onToggleActive: (id: number) => void; onDelete: (id: number) => void; onDeleteAll: () => void }) {
+  const [searchDraft, setSearchDraft] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const searchLabelRef = useRef<HTMLLabelElement>(null)
+  const activeSources = sources.filter(source => source.active)
+  const selectedCount = activeSources.filter(source => !deselectedSourceIds.includes(source.id)).length
+  const allSelected = activeSources.length > 0 && selectedCount === activeSources.length
+  const visibleSources = sources.filter(source => `${source.name} ${source.url} ${platformLabel[source.platform]}`.toLocaleLowerCase('ru').includes(searchQuery.trim().toLocaleLowerCase('ru')))
+  const showSearchGlint = () => {
+    const label = searchLabelRef.current
+    if (label) {
+      label.classList.remove('is-shining')
+      void label.offsetWidth
+      label.classList.add('is-shining')
+    }
+  }
+  const runSourceSearch = (event: FormEvent) => {
+    event.preventDefault()
+    showSearchGlint()
+    setSearchQuery(searchDraft)
+  }
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (!(event.target instanceof Element && event.target.closest('.source-directory-menu'))) setOpenMenuId(null)
+    }
+    const closeEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') setOpenMenuId(null) }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape) }
+  }, [])
+
+  return <section className="repository-sources sources-reference-page">
+    <form className="source-directory-search" onSubmit={runSourceSearch}>
+      <label ref={searchLabelRef} onPointerDown={showSearchGlint}><Search size={24}/><input value={searchDraft} onChange={event => { setSearchDraft(event.target.value); if (!event.target.value) setSearchQuery('') }} placeholder="Введите название источника" aria-label="Название источника"/></label>
+      <button type="submit"><Search size={20}/>Найти</button>
+    </form>
+    <div className="source-directory-list">
+      <header className="source-directory-header">
+        <label className="source-directory-select-all"><input type="checkbox" aria-label="Выбрать все источники для поиска" checked={allSelected} disabled={!activeSources.length} onChange={() => onToggleAllSelection(!allSelected)}/><span><strong>Мой список</strong><small>{sources.length} источников · {selectedCount} выбраны для поиска</small></span></label>
+        <div className="source-directory-header-actions"><button type="button" className="source-directory-remove-all" onClick={onDeleteAll} disabled={!sources.length}><X size={17}/>Удалить все</button><button type="button" className="source-directory-add" onClick={onAdd}><Plus size={20}/>Добавить</button></div>
+      </header>
+      <div className="source-directory-rows">
+        {visibleSources.map(source => <div key={source.id} className="source-directory-row">
+          <button type="button" className={`source-directory-check ${source.active && !deselectedSourceIds.includes(source.id) ? 'checked' : ''}`} onClick={() => onToggleSelection(source.id)} disabled={!source.active} aria-label={`${deselectedSourceIds.includes(source.id) ? 'Выбрать' : 'Убрать из поиска'} ${source.name}`} aria-pressed={source.active && !deselectedSourceIds.includes(source.id)}><Check size={14}/></button>
+          <div className="source-directory-avatar">{source.logoUrl ? <img src={source.logoUrl} alt=""/> : <PlatformBadge platform={source.platform} size={34}/>}</div>
+          <div className="source-directory-copy"><strong>{source.name}</strong></div>
+          <div className="source-directory-state"><PlatformBadge platform={source.platform} size={34}/><span className={source.active ? 'active' : ''}><i/>{source.active ? 'Доступен' : 'Отключён'}</span></div>
+          <div className="source-directory-actions">
+            <div className="source-directory-menu"><button type="button" aria-label={`Действия с ${source.name}`} aria-expanded={openMenuId === source.id} onClick={() => setOpenMenuId(current => current === source.id ? null : source.id)}><MoreHorizontal size={20}/></button>{openMenuId === source.id && <div className="source-directory-dropdown"><button type="button" onClick={() => { setOpenMenuId(null); onEdit(source) }}>Изменить</button><button type="button" onClick={() => { setOpenMenuId(null); onToggleActive(source.id) }}>{source.active ? 'Отключить' : 'Включить'}</button><button type="button" className="danger-action" onClick={() => { setOpenMenuId(null); onDelete(source.id) }}>Удалить</button></div>}</div>
+            <a href={source.url} target="_blank" rel="noreferrer" aria-label={`Открыть ${source.name}`}><ExternalLink size={19}/></a>
+            <button type="button" className="source-directory-delete" onClick={() => onDelete(source.id)} aria-label={`Удалить ${source.name}`}><X size={20}/></button>
+          </div>
+        </div>)}
+        {visibleSources.length === 0 && <div className="source-directory-empty">{sources.length ? 'По этому названию источники не найдены.' : 'Пока нет источников. Добавьте первый источник.'}</div>}
+      </div>
     </div>
   </section>
 }
