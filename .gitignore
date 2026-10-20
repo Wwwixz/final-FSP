@@ -3,3 +3,9 @@ dist/
 *.tsbuildinfo
 .DS_Store
 /design/
+
+dist-file/
+*.log
+*.log.err
+.env.local
+.vite/

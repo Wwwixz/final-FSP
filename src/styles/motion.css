@@ -1,0 +1,185 @@
+/* Motion language: one cinematic city world + clear UI feedback. */
+
+:root{
+  --motion-ease-out:cubic-bezier(.16,1,.3,1);
+  --motion-ease-soft:cubic-bezier(.2,0,0,1);
+  --motion-fast:160ms;
+  --motion-mid:280ms;
+  --motion-enter:560ms;
+}
+
+/* Page content rises once over the living background. */
+.results-page,
+.publication-page,
+.sources-shell,
+.saved-shell,
+.settings-shell,
+.analytics-page{
+  animation:scene-rise var(--motion-enter) var(--motion-ease-out) both;
+}
+
+.results-search-panel{
+  animation:panel-rise .62s var(--motion-ease-out) both;
+}
+
+.results-empty-state,
+.results-loading,
+.results-found-heading,
+.results-summary-bar,
+.results-design-card{
+  animation:panel-rise .55s var(--motion-ease-out) both;
+}
+.results-found-heading{animation-delay:40ms}
+.results-summary-bar{animation-delay:70ms}
+.results-design-card{animation-delay:110ms}
+
+.result-row{
+  animation:row-rise .48s var(--motion-ease-out) both;
+  animation-delay:calc(120ms + var(--i,0) * 45ms);
+  transition:background-color var(--motion-fast) var(--motion-ease-soft),transform var(--motion-fast) var(--motion-ease-soft);
+}
+.result-row:hover{
+  background-color:rgba(255,255,255,.04);
+  transform:translateX(2px);
+}
+
+.primary-action,
+.find-button,
+.button-primary,
+.auth-submit,
+.results-find{
+  transition:transform var(--motion-fast) var(--motion-ease-soft),filter var(--motion-fast),box-shadow var(--motion-mid) var(--motion-ease-soft);
+}
+.primary-action:hover,
+.find-button:hover,
+.button-primary:hover,
+.auth-submit:hover,
+.results-find:hover{
+  filter:brightness(1.05);
+  box-shadow:0 10px 28px rgba(229,29,59,.32);
+}
+.primary-action:active,
+.find-button:active,
+.button-primary:active,
+.auth-submit:active,
+.results-find:active{
+  transform:scale(.97);
+}
+
+.nav-link{
+  transition:background-color var(--motion-fast),color var(--motion-fast),transform var(--motion-fast) var(--motion-ease-soft);
+}
+.nav-link:hover{transform:translateY(-1px)}
+.nav-active{box-shadow:inset 0 -2px 0 #ff455b}
+
+.results-search-examples button,
+.search-tags button,
+.platform-filter button{
+  transition:background-color var(--motion-fast),color var(--motion-fast),transform var(--motion-fast) var(--motion-ease-soft),border-color var(--motion-fast);
+}
+.results-search-examples button:hover,
+.search-tags button:hover,
+.platform-filter button:hover{
+  transform:translateY(-1px);
+}
+
+.publication-thumb,
+.result-photo{
+  transition:transform .35s var(--motion-ease-out),box-shadow .35s var(--motion-ease-out);
+}
+.result-row:hover .publication-thumb,
+.result-row:hover .result-photo{
+  transform:scale(1.03);
+}
+
+.auth-card{
+  animation:panel-rise .7s var(--motion-ease-out) .08s both;
+}
+.auth-logo{
+  animation:panel-rise .55s var(--motion-ease-out) both;
+}
+
+.notice{animation:notice-enter .28s var(--motion-ease-out) both}
+
+@keyframes scene-rise{
+  from{opacity:0;transform:translateY(14px)}
+  to{opacity:1;transform:none}
+}
+@keyframes panel-rise{
+  from{opacity:0;transform:translateY(18px) scale(.985);filter:blur(6px)}
+  to{opacity:1;transform:none;filter:none}
+}
+@keyframes row-rise{
+  from{opacity:0;transform:translateY(10px)}
+  to{opacity:1;transform:none}
+}
+
+/* Readable type scale — kills the “tiny 2014 admin” feel. */
+.results-search-copy h1{
+  font:800 clamp(1.55rem,2.2vw,1.9rem)/1.15 'Unbounded','Manrope',sans-serif;
+  letter-spacing:-.04em;
+}
+.results-search-copy p{font-size:13px;line-height:1.5}
+.results-query-field{height:46px;border-radius:12px}
+.results-query-field input{font-size:14px}
+.results-find{min-height:46px;min-width:112px;border-radius:11px;font-size:13px}
+.results-search-examples{font-size:12px;gap:8px}
+.results-search-examples button{padding:7px 12px;font-size:12px;border-radius:999px}
+.results-search-filters label{font-size:11px}
+.results-search-filters label>div,
+.results-search-filters fieldset button{height:38px;font-size:12px;border-radius:10px}
+.results-search-filters input,
+.results-search-filters select{font-size:12px}
+.design-page-heading h1,
+.results-found-heading h1{
+  font:800 clamp(1.35rem,1.8vw,1.65rem)/1.15 'Unbounded','Manrope',sans-serif;
+  letter-spacing:-.03em;
+}
+.design-page-heading p{font-size:13px}
+.design-card-heading h2{font:700 16px/1.25 'Manrope',sans-serif}
+.design-card-heading p{font-size:12px}
+.result-title{font-size:14px;line-height:1.35}
+.result-copy>p{font-size:13px;line-height:1.5;-webkit-line-clamp:3}
+.result-metadata,
+.result-engagement{font-size:12px;gap:12px}
+.soft-action,
+.primary-action,
+.summary-edit{min-height:38px;padding:0 14px;font-size:12px;border-radius:10px}
+.summary-filter{min-height:34px;font-size:12px;border-radius:9px}
+.results-platform-summary{font-size:12px;padding:7px 12px}
+.results-pagination{font-size:12px}
+.results-empty-state h2{font:700 18px/1.25 'Unbounded','Manrope',sans-serif}
+.results-empty-state p{font-size:13px;max-width:36ch}
+.brand-card b{
+  font:800 13px/1.2 'Unbounded','Manrope',sans-serif;
+  letter-spacing:.02em;
+}
+.nav-link{font-size:13px;min-height:42px}
+
+@media(prefers-reduced-motion:reduce){
+  .results-page,
+  .publication-page,
+  .sources-shell,
+  .saved-shell,
+  .settings-shell,
+  .analytics-page,
+  .results-search-panel,
+  .results-empty-state,
+  .results-loading,
+  .results-found-heading,
+  .results-summary-bar,
+  .results-design-card,
+  .result-row,
+  .auth-card,
+  .auth-logo{
+    animation:none;
+    filter:none;
+    transform:none;
+  }
+  .result-row:hover,
+  .nav-link:hover,
+  .result-row:hover .publication-thumb,
+  .result-row:hover .result-photo{
+    transform:none;
+  }
+}
