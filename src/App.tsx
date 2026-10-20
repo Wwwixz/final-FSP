@@ -832,7 +832,6 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
           </div>
           <button type="button" className="platform-add-link" aria-label="Добавить ссылку на сайт" title="Добавить ссылку на сайт" onClick={addCustomLink}><Plus size={19}/></button>
         </div>
-        {customLinks.length > 0 && <small className="platform-custom-note">Ссылки сохраняются в браузере. Поиск по указанным сайтам пока не подключён.</small>}
       </div>
     </div>
   </form>
