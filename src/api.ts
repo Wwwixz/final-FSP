@@ -216,9 +216,17 @@ export async function waitForSearch(id: number, signal?: AbortSignal): Promise<A
 }
 
 export async function downloadSearchExport(id: number, format: 'xlsx' | 'docx' = 'xlsx') {
-  const response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`)
-  if (!response.ok) throw new ApiError(`Не удалось выгрузить отчёт (${response.status})`, response.status)
+  const token = getToken()
+  const response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) {
+    let message = `Не удалось выгрузить отчёт (${response.status})`
+    try { const body = await response.json() as { message?: string }; if (body?.message) message = body.message } catch { /* не-json ответ */ }
+    throw new ApiError(message, response.status)
+  }
   const blob = await response.blob()
+  if (!blob || blob.size === 0) throw new ApiError('Выгрузился пустой файл — попробуйте повторить поиск и выгрузку.', response.status)
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url
