@@ -8,11 +8,12 @@ import {
   CircleHelp, Download, ExternalLink, Eye, EyeOff, Frown, Heart, Lock, Mail, MapPin, Meh,
   Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Smile, Star, Sun, User, Users, X,
 } from 'lucide-react'
-
 type Page = 'login' | 'register' | 'results' | 'publication' | 'sources' | 'saved' | 'settings'
 type Platform = 'VK' | 'OK' | 'MAX'
-type Source = { id: number; name: string; platform: Platform; url: string; followers: string; region: string; active: boolean; color: string }
-type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean }
+type LocalSourcePlatform = 'TG' | 'DZEN'
+type SourcePlatform = Platform | LocalSourcePlatform
+type Source = { id: number; name: string; platform: SourcePlatform; url: string; followers: string; region: string; active: boolean; color: string }
+type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean; status?: ApiSearch['status']; totalFound?: number; createdAt?: string; platforms?: Platform[] }
 type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; image: string; likes: number; reposts: number; views: number; aiRelevance: number | null; aiComment: string | null }
 type CityBackground = 'day' | 'evening'
 type ThemeMode = 'system' | 'light' | 'dark'
@@ -62,6 +63,27 @@ const initialSources: Source[] = [
   { id: 5, name: 'Красноярск. Главное', platform: 'MAX', url: 'max.ru/krasnoyarsk', followers: '38K', region: 'Красноярский край', active: true, color: '#5d4a37' },
   { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
+const localSourcesStorageKey = 'krasnopars-local-sources'
+const isLocalSourcePlatform = (platform: SourcePlatform): platform is LocalSourcePlatform => platform === 'TG' || platform === 'DZEN'
+const isApiSource = (source: Source): source is Source & { platform: Platform } => !isLocalSourcePlatform(source.platform)
+const localPlatformColor: Record<LocalSourcePlatform, string> = { TG: '#229ed9', DZEN: '#202022' }
+const localPlatformIcon: Record<LocalSourcePlatform, string> = { TG: '/telegram-logo.svg', DZEN: '/dzen-logo.svg' }
+const readLocalSources = (): Source[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(localSourcesStorageKey) || '[]')
+    if (!Array.isArray(stored)) return []
+    return stored.flatMap((item: unknown) => {
+      if (!item || typeof item !== 'object') return []
+      const source = item as Partial<Source>
+      const platform = source.platform
+      if (typeof source.id !== 'number' || source.id >= 0 || typeof source.name !== 'string' || typeof source.url !== 'string' || (platform !== 'TG' && platform !== 'DZEN')) return []
+      return [{ id: source.id, name: source.name, platform, url: source.url, followers: '—', region: 'Красноярский край', active: false, color: localPlatformColor[platform] }]
+    })
+  } catch {
+    return []
+  }
+}
 const initialSaved: SavedQuery[] = [
   { id: 1, name: 'Ледовый дворец', query: 'открытие ледового дворца Красноярск', period: '01.03.2026 — 31.03.2026', region: 'Красноярский край', favorite: true },
   { id: 2, name: 'Наводнение 2026', query: 'наводнение Красноярский край', period: '01.04.2026 — 30.04.2026', region: 'Красноярский край', favorite: true },
@@ -70,6 +92,7 @@ const initialSaved: SavedQuery[] = [
   { id: 5, name: 'Строительство', query: 'строительство Красноярск', period: '01.01.2026 — 31.12.2026', region: 'Красноярский край', favorite: true },
 ]
 const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX' }
+const sourcePlatformLabel: Record<SourcePlatform, string> = { ...platformLabel, TG: 'Telegram', DZEN: 'Дзен' }
 const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2026', 'развитие спорта']
 
 const platformColor: Record<Platform, string> = { VK: '#5278d9', OK: '#e98a35', MAX: '#7358ce' }
@@ -134,21 +157,26 @@ function App() {
   const [region, setRegion] = useState('Красноярский край')
   const [regions, setRegions] = useState(['Красноярский край', 'Красноярск', 'Ачинск', 'Норильск'])
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
-  const [sources, setSources] = useState<Source[]>(initialSources)
+  const [sources, setSources] = useState<Source[]>(() => [...initialSources, ...readLocalSources()])
   const [results, setResults] = useState<Publication[]>([])
   const [searchId, setSearchId] = useState<number | null>(null)
   const [, setSearchStatus] = useState<ApiSearch['status'] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const [validationSubmitted, setValidationSubmitted] = useState(false)
+  const [isOpeningSavedSearch, setIsOpeningSavedSearch] = useState(false)
   const searchRunRef = useRef(0)
+  const sourceBulkRunRef = useRef(0)
+  const sourceBulkQueueRef = useRef<Promise<void>>(Promise.resolve())
   const [apiError, setApiError] = useState('')
   const [saved, setSaved] = useState(initialSaved)
+  const [recentlyOpened, setRecentlyOpened] = useState<Record<number, number>>({})
   const [notice, setNotice] = useState('')
   const [settingsTab, setSettingsTab] = useState('Основные')
   const [sourceModal, setSourceModal] = useState(false)
+  const [sourceModalError, setSourceModalError] = useState('')
   const [sourceName, setSourceName] = useState('')
   const [sourceUrl, setSourceUrl] = useState('')
-  const [sourcePlatform, setSourcePlatform] = useState<Platform>('VK')
+  const [sourcePlatform, setSourcePlatform] = useState<SourcePlatform>('VK')
   const [sourceEdit, setSourceEdit] = useState<number | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
@@ -187,7 +215,7 @@ function App() {
       void Promise.allSettled([api.health(), api.platforms(), api.aiStatus()])
 
       if (cancelled) return
-      if (sourceResult.status === 'fulfilled') setSources(sourceResult.value.map(mapSource))
+      if (sourceResult.status === 'fulfilled') setSources(current => [...sourceResult.value.map(mapSource), ...current.filter(source => isLocalSourcePlatform(source.platform))])
       else setApiError(`Источники API недоступны: ${getErrorMessage(sourceResult.reason)}`)
 
       if (historyResult.status === 'fulfilled') {
@@ -198,6 +226,10 @@ function App() {
           period: formatApiPeriod(item),
           region: item.region || 'Все регионы',
           favorite: false,
+          status: item.status,
+          totalFound: item.totalFound,
+          createdAt: item.createdAt,
+          platforms: item.mode === 'ALL_PLATFORMS' ? ['VK', 'OK', 'MAX'] : item.sources?.map(source => source.platform),
         })))
       }
       if (regionResult.status === 'fulfilled' && regionResult.value.length) setRegions(regionResult.value)
@@ -206,7 +238,29 @@ function App() {
     return () => { cancelled = true }
   }, [])
 
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(localSourcesStorageKey, JSON.stringify(sources.filter(source => isLocalSourcePlatform(source.platform))))
+    } catch {
+      setApiError('Не удалось сохранить локальные источники в этом браузере.')
+    }
+  }, [sources])
+
   const togglePlatform = (platform: Platform) => setPlatforms(current => current.includes(platform) ? current.filter(value => value !== platform) : [...current, platform])
+  const startNewSearch = () => {
+    searchRunRef.current += 1
+    setPage('results')
+    setQuery('')
+    setHasSearched(false)
+    setIsSearching(false)
+    setIsOpeningSavedSearch(false)
+    setValidationSubmitted(false)
+    setResults([])
+    setSearchId(null)
+    setSearchStatus(null)
+    setNotice('')
+    setApiError('')
+  }
   const updateQuery = (value: string) => {
     if (value === query) return
     searchRunRef.current += 1
@@ -233,7 +287,7 @@ function App() {
       return
     }
     setValidationSubmitted(false)
-    const sourceIds = sources.filter(source => source.active && platforms.includes(source.platform)).map(source => source.id)
+    const sourceIds = sources.filter(source => isApiSource(source) && source.active && platforms.includes(source.platform)).map(source => source.id)
     if (!sourceIds.length) {
       setApiError('Выберите хотя бы одну площадку с активным источником.')
       return
@@ -247,6 +301,7 @@ function App() {
     setPage('results')
     setResults([])
     try {
+      setIsOpeningSavedSearch(false)
       const created = await api.createSearch({
         query: query.trim(),
         searchType: 'TOPIC',
@@ -268,6 +323,18 @@ function App() {
       const publicationPage = await loadAllPublications(created.id)
       if (searchRunRef.current !== runId) return
       setResults(publicationPage.content.map(mapPublication))
+      setSaved(current => [{
+        id: completed.id,
+        name: completed.query || `Поиск №${completed.id}`,
+        query: completed.query,
+        period: formatApiPeriod(completed),
+        region: completed.region || 'Все регионы',
+        favorite: current.find(item => item.id === completed.id)?.favorite ?? false,
+        status: completed.status,
+        totalFound: publicationPage.totalElements,
+        createdAt: completed.createdAt,
+        platforms: completed.mode === 'ALL_PLATFORMS' ? ['VK', 'OK', 'MAX'] : completed.sources?.map(source => source.platform) ?? platforms,
+      }, ...current.filter(item => item.id !== completed.id)])
       setNotice(completed.status === 'COMPLETED_PARTIAL'
         ? `Поиск завершён частично: найдено ${publicationPage.totalElements} публикаций, часть источников недоступна.`
         : `Поиск завершён: найдено ${publicationPage.totalElements} публикаций.`)
@@ -280,32 +347,111 @@ function App() {
     }
   }
   const openSaved = async (item: SavedQuery) => {
-    searchRunRef.current += 1
+    const runId = ++searchRunRef.current
+    setRecentlyOpened(current => ({ ...current, [item.id]: Date.now() }))
     setQuery(item.query)
     if (item.region !== 'Все регионы') setRegion(item.region)
     setPage('results')
     setHasSearched(true)
     setIsSearching(true)
+    setIsOpeningSavedSearch(true)
     setApiError('')
+    setNotice('')
     try {
       const [search, publicationPage] = await Promise.all([api.search(item.id), loadAllPublications(item.id)])
+      if (searchRunRef.current !== runId) return
       setSearchId(item.id)
       setSearchStatus(search.status)
-      setResults(publicationPage.content.map(mapPublication))
+      const mappedResults = publicationPage.content.map(mapPublication)
+      setResults(mappedResults)
+      const resultPlatforms = [...new Set(mappedResults.map(publication => publication.platform))]
+      if (resultPlatforms.length) setPlatforms(resultPlatforms)
+      setPeriodStart(search.dateFrom ?? '')
+      setPeriodEnd(search.dateTo ?? '')
+      if (search.region) setRegion(search.region)
+      setSaved(current => current.map(savedItem => savedItem.id === item.id ? {
+        ...savedItem,
+        status: search.status,
+        totalFound: search.totalFound,
+        createdAt: search.createdAt,
+        platforms: search.mode === 'ALL_PLATFORMS' ? ['VK', 'OK', 'MAX'] : search.sources?.map(source => source.platform) ?? savedItem.platforms,
+      } : savedItem))
       setNotice(`Загружены результаты поиска №${item.id} из истории API.`)
     } catch (error) {
-      setApiError(getErrorMessage(error))
+      if (searchRunRef.current === runId) setApiError(getErrorMessage(error))
     } finally {
-      setIsSearching(false)
+      if (searchRunRef.current === runId) {
+        setIsSearching(false)
+        setIsOpeningSavedSearch(false)
+      }
     }
   }
-  const openSourceDialog = (source?: Source) => { setSourceEdit(source?.id ?? null); setSourceName(source?.name ?? ''); setSourceUrl(source?.url ?? ''); setSourcePlatform(source?.platform ?? 'VK'); setSourceModal(true) }
+  const restartSavedSearch = async (item: SavedQuery) => {
+    const runId = ++searchRunRef.current
+    setQuery(item.query)
+    setPage('results')
+    setHasSearched(true)
+    setIsSearching(true)
+    setIsOpeningSavedSearch(false)
+    setResults([])
+    setApiError('')
+    setNotice('')
+    try {
+      const restarted = await api.restartSearch(item.id)
+      if (searchRunRef.current !== runId) return
+      setSearchId(restarted.id)
+      setSearchStatus(restarted.status)
+      const completed = await waitForSearch(restarted.id)
+      if (searchRunRef.current !== runId) return
+      setSearchStatus(completed.status)
+      if (completed.status === 'FAILED') throw new Error(completed.error || 'Повторный поиск завершился с ошибкой.')
+      const publicationPage = await api.publications(restarted.id)
+      if (searchRunRef.current !== runId) return
+      setResults(publicationPage.content.map(mapPublication))
+      setSaved(current => current.map(savedItem => savedItem.id === item.id ? {
+        ...savedItem,
+        status: completed.status,
+        totalFound: publicationPage.totalElements,
+        createdAt: completed.createdAt,
+      } : savedItem))
+      setNotice(`Повторный поиск завершён: найдено ${publicationPage.totalElements} публикаций.`)
+    } catch (error) {
+      if (searchRunRef.current === runId) setApiError(getErrorMessage(error))
+    } finally {
+      if (searchRunRef.current === runId) setIsSearching(false)
+    }
+  }
+  const openSourceDialog = (source?: Source) => { setApiError(''); setSourceModalError(''); setSourceEdit(source?.id ?? null); setSourceName(source?.name ?? ''); setSourceUrl(source?.url ?? ''); setSourcePlatform(source?.platform ?? 'VK'); setSourceModal(true) }
   const submitSource = async (event: FormEvent) => {
     event.preventDefault()
     if (!sourceName.trim() || !sourceUrl.trim()) return
     setApiError('')
+    setSourceModalError('')
     try {
       const url = /^https?:\/\//i.test(sourceUrl.trim()) ? sourceUrl.trim() : `https://${sourceUrl.trim()}`
+      const parsedUrl = new URL(url)
+      if (!['http:', 'https:'].includes(parsedUrl.protocol)) throw new Error('Укажите ссылку с адресом сайта.')
+      if (isLocalSourcePlatform(sourcePlatform)) {
+        const host = parsedUrl.hostname.replace(/^www\./, '').toLowerCase()
+        const validHost = sourcePlatform === 'TG'
+          ? host === 't.me' || host === 'telegram.me'
+          : host === 'dzen.ru' || host === 'zen.yandex.ru'
+        if (!validHost || parsedUrl.pathname === '/') throw new Error(sourcePlatform === 'TG' ? 'Укажите ссылку на канал Telegram (t.me/...).' : 'Укажите ссылку на канал Дзена (dzen.ru/...).')
+        if (sources.some(source => source.id !== sourceEdit && source.url.replace(/\/$/, '').toLowerCase() === parsedUrl.href.replace(/\/$/, '').toLowerCase())) throw new Error('Источник с такой ссылкой уже есть в списке.')
+        const localSource: Source = {
+          id: sourceEdit ?? Math.min(0, ...sources.map(source => source.id)) - 1,
+          name: sourceName.trim(),
+          url: parsedUrl.href,
+          platform: sourcePlatform,
+          followers: '—',
+          region: 'Красноярский край',
+          active: false,
+          color: localPlatformColor[sourcePlatform],
+        }
+        setSources(current => sourceEdit === null ? [localSource, ...current] : current.map(source => source.id === sourceEdit ? localSource : source))
+        setSourceModal(false)
+        return
+      }
       const payload = { name: sourceName.trim(), url, platform: sourcePlatform, active: true }
       const savedSource = sourceEdit === null
         ? await api.createSource(payload)
@@ -315,21 +461,71 @@ function App() {
       setSourceModal(false)
       setNotice(sourceEdit === null ? 'Источник добавлен через API.' : 'Источник обновлён через API.')
     } catch (error) {
-      setApiError(getErrorMessage(error))
+      setSourceModalError(getErrorMessage(error))
     }
   }
-  const toggleSource = async (id: number) => {
+  const toggleSource = (id: number) => {
     const source = sources.find(item => item.id === id)
-    if (!source) return
+    if (!source || !isApiSource(source)) return
+    const active = !source.active
     setApiError('')
-    try {
-      const updated = await api.updateSource(id, { name: source.name, platform: source.platform, url: source.url, active: !source.active })
-      setSources(current => current.map(item => item.id === id ? mapSource(updated) : item))
-    } catch (error) {
-      setApiError(getErrorMessage(error))
+    setSources(current => current.map(item => item.id === id ? { ...item, active } : item))
+    const update = async () => {
+      try {
+        const updated = await api.updateSource(id, { name: source.name, platform: source.platform, url: source.url, active })
+        setSources(current => current.map(item => item.id === id && item.active === active ? { ...mapSource(updated), active } : item))
+      } catch (error) {
+        setSources(current => current.map(item => item.id === id && item.active === active ? source : item))
+        setApiError(`Не удалось ${active ? 'включить' : 'выключить'} источник «${source.name}». ${getErrorMessage(error)}`)
+      }
     }
+    sourceBulkQueueRef.current = sourceBulkQueueRef.current.then(update, update)
+  }
+  const setAllSourcesActive = (active: boolean) => {
+    const changedSources = sources.filter(isApiSource).filter(source => source.active !== active)
+    if (!changedSources.length) return Promise.resolve()
+    const runId = ++sourceBulkRunRef.current
+    setApiError('')
+    setSources(current => current.map(source => isLocalSourcePlatform(source.platform) ? source : { ...source, active }))
+    const update = async () => {
+      const updates = await Promise.allSettled(changedSources.map(async source => {
+        const updated = await api.updateSource(source.id, { name: source.name, platform: source.platform, url: source.url, active })
+        return { id: source.id, updated: { ...mapSource(updated), active } }
+      }))
+      if (runId !== sourceBulkRunRef.current) return
+      const successful = new Map<number, Source>()
+      const failed = new Set<number>()
+      updates.forEach((result, index) => {
+        if (result.status === 'fulfilled') successful.set(result.value.id, result.value.updated)
+        else failed.add(changedSources[index].id)
+      })
+      if (failed.size) {
+        try {
+          const refreshed = await api.sources()
+          if (runId === sourceBulkRunRef.current) {
+            const refreshedById = new Map(refreshed.map(source => [source.id, mapSource(source)]))
+            setSources(current => current.map(source => source.active === active ? refreshedById.get(source.id) ?? source : source))
+          }
+        } catch {
+          const previous = new Map(changedSources.filter(source => failed.has(source.id)).map(source => [source.id, source]))
+          if (runId === sourceBulkRunRef.current) setSources(current => current.map(source => source.active === active ? successful.get(source.id) ?? previous.get(source.id) ?? source : source))
+        }
+        if (runId !== sourceBulkRunRef.current) return
+        const firstFailure = updates.find(result => result.status === 'rejected')
+        const reason = firstFailure?.status === 'rejected' ? ` ${getErrorMessage(firstFailure.reason)}` : ''
+        setApiError(`Не удалось ${active ? 'включить' : 'выключить'} ${failed.size} из ${changedSources.length} источников.${reason}`)
+      } else {
+        setSources(current => current.map(source => source.active === active ? successful.get(source.id) ?? source : source))
+      }
+    }
+    sourceBulkQueueRef.current = sourceBulkQueueRef.current.then(update, update)
+    return sourceBulkQueueRef.current
   }
   const deleteSource = async (id: number) => {
+    if (sources.some(source => source.id === id && isLocalSourcePlatform(source.platform))) {
+      setSources(current => current.filter(source => source.id !== id))
+      return
+    }
     setApiError('')
     try {
       await api.deleteSource(id)
@@ -354,6 +550,21 @@ function App() {
       setApiError(getErrorMessage(error))
     }
   }
+  const removeAllSaved = async () => {
+    if (!saved.length) return
+    setApiError('')
+    const outcomes = await Promise.allSettled(saved.map(item => api.deleteSearch(item.id)))
+    const removedIds = new Set(saved.filter((_, index) => outcomes[index].status === 'fulfilled').map(item => item.id))
+    setSaved(current => current.filter(item => !removedIds.has(item.id)))
+    if (searchId !== null && removedIds.has(searchId)) {
+      setSearchId(null)
+      setResults([])
+      setHasSearched(false)
+    }
+    const failedCount = outcomes.length - removedIds.size
+    if (failedCount) setApiError(`Удалось удалить ${removedIds.size} из ${outcomes.length} запросов. Остальные не удалось удалить через API.`)
+    else setNotice(`Удалено запросов: ${removedIds.size}.`)
+  }
   const exportResults = async () => {
     if (searchId === null) return
     setApiError('')
@@ -372,7 +583,7 @@ function App() {
     <aside className="app-sidebar">
       <div className="brand-card"><img className="brand-emblem" src="/favicon.png" alt="Герб Красноярского края со львом"/><div><b>КрасноПарс</b><span>Красноярский край</span></div></div>
       <nav className="sidebar-nav">
-        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Поиск</NavItem>
+        <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={startNewSearch}>Поиск</NavItem>
         <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
         <NavItem active={page === 'saved'} icon={<Bookmark size={18}/>} onClick={() => setPage('saved')}>Сохранённые запросы</NavItem>
         <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
@@ -393,22 +604,40 @@ function App() {
         </div>}
         {apiError && <div className="api-error"><CircleAlert size={16}/><span>{apiError}</span><button onClick={() => setApiError('')} aria-label="Закрыть"><X size={15}/></button></div>}
         {page === 'results' && <ResultsPage
-          results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching}
+          results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching} isOpeningSavedSearch={isOpeningSavedSearch}
+          onNewSearch={startNewSearch}
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
           onSubmit={runSearch} onExport={exportResults} onOpen={item => { setSelectedPublication(item); setSelectedPublicationIndex(results.findIndex(result => result.id === item.id)); setPage('publication') }} validationSubmitted={validationSubmitted}
         />}
         {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} position={selectedPublicationIndex + 1} total={results.length} onPrevious={() => { const next = results[selectedPublicationIndex - 1]; if (next) { setSelectedPublication(next); setSelectedPublicationIndex(selectedPublicationIndex - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) } }} onNext={() => { const next = results[selectedPublicationIndex + 1]; if (next) { setSelectedPublication(next); setSelectedPublicationIndex(selectedPublicationIndex + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) } }} onBack={() => setPage('results')}/>}
-        {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onDelete={deleteSource}/>}
+        {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onToggleAll={setAllSourcesActive} onDelete={deleteSource}/>}
         {page === 'saved' && <SavedPage
-          items={saved} onOpen={openSaved} onRemove={removeSaved}
-          onNew={() => { setQuery(''); setHasSearched(false); setPage('results') }}
+          items={saved} recentlyOpened={recentlyOpened} onOpen={openSaved} onRestart={restartSavedSearch} onRemove={removeSaved}
+          onRemoveAll={removeAllSaved}
+          onClearFavorites={() => setSaved(current => current.map(item => ({ ...item, favorite: false })))}
+          onNew={startNewSearch}
           onFavorite={id => setSaved(current => current.map(item => item.id === id ? { ...item, favorite: !item.favorite } : item))}
         />}
         {page === 'settings' && <SettingsPage tab={settingsTab} setTab={setSettingsTab} region={region} setRegion={setRegion} themeMode={themeMode} setThemeMode={setThemeMode} onSave={() => { setSettingsSaved(true); window.setTimeout(() => setSettingsSaved(false), 2500) }} saved={settingsSaved}/>}
       </div>
     </main>
-    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}><div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div><label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label><label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="vk.com/community"/></label><label>Площадка<select value={sourcePlatform} onChange={event => setSourcePlatform(event.target.value as Platform)}><option>VK</option><option>OK</option><option>MAX</option></select></label><div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div></form></div>}
+    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}>
+      <form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}>
+        <div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div>
+        {sourceModalError && <div className="source-modal-error" role="alert"><CircleAlert size={16}/><span>{sourceModalError}</span><button type="button" onClick={() => setSourceModalError('')} aria-label="Закрыть"><X size={15}/></button></div>}
+        <label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label>
+        <label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder={sourcePlatform === 'TG' ? 't.me/channel' : sourcePlatform === 'DZEN' ? 'dzen.ru/channel' : 'vk.com/community'}/></label>
+        <label>Площадка<div className="source-platform-control">
+          {isLocalSourcePlatform(sourcePlatform) && <img src={localPlatformIcon[sourcePlatform]} alt=""/>}
+          <select value={sourcePlatform} disabled={sourceEdit !== null} onChange={event => setSourcePlatform(event.target.value as SourcePlatform)}>
+            <option value="VK">VK</option><option value="OK">Одноклассники</option><option value="MAX">MAX</option><option value="TG">Telegram</option><option value="DZEN">Дзен</option>
+          </select>
+        </div></label>
+        {isLocalSourcePlatform(sourcePlatform) && <p className="source-local-hint">Канал сохранится в этом браузере. Поиск по этой площадке подключим позже.</p>}
+        <div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div>
+      </form>
+    </div>}
   </div>
 }
 
@@ -791,7 +1020,7 @@ function SortDropdown({ value, onChange }: { value: 'relevance' | 'newest'; onCh
   </div>
 }
 
-function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, validationSubmitted = false }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; validationSubmitted?: boolean }) {
+function ResultsPage({ results, query, setQuery, hasSearched, isSearching, isOpeningSavedSearch, onNewSearch, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, validationSubmitted = false }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; isOpeningSavedSearch: boolean; onNewSearch: () => void; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; validationSubmitted?: boolean }) {
   const [resultPage, setResultPage] = useState(1)
   const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
   const [savedResult, setSavedResult] = useState(false)
@@ -810,9 +1039,9 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
     window.requestAnimationFrame(() => resultsCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
   return <div className="design-page results-page">
-    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} validationSubmitted={validationSubmitted} isSearching={isSearching}/>
-    {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники.</p></div> : <>
-    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
+    {!hasSearched && <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} validationSubmitted={validationSubmitted} isSearching={isSearching}/>}
+    {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>{isOpeningSavedSearch ? 'Открываю сохранённый запрос' : 'Идёт поиск публикаций'}</h2><p>{isOpeningSavedSearch ? 'Загружаю уже сохранённые результаты из истории.' : 'Сервер обрабатывает источники.'}</p></div> : <>
+    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={onNewSearch} className="soft-action"><Search size={14}/>Новый поиск</button><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
     <div className="results-summary-bar">
       <div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div>
       <div className="summary-filter"><MapPin size={15}/><span>{region}</span></div>
@@ -886,19 +1115,87 @@ function PublicationPage({ item, position, total, onPrevious, onNext, onBack }: 
   </div>
 }
 
-function SourcesPage({ sources, onAdd, onEdit, onToggle, onDelete }: { sources: Source[]; onAdd: () => void; onEdit: (source: Source) => void; onToggle: (id: number) => void; onDelete: (id: number) => void }) {
+function SourcesPage({ sources, onAdd, onEdit, onToggle, onToggleAll, onDelete }: { sources: Source[]; onAdd: () => void; onEdit: (source: Source) => void; onToggle: (id: number) => void; onToggleAll: (active: boolean) => Promise<void>; onDelete: (id: number) => void }) {
+  const searchableSources = sources.filter(source => !isLocalSourcePlatform(source.platform))
+  const allSourcesActive = searchableSources.length > 0 && searchableSources.every(source => source.active)
   return <section className="repository-sources"><div className="repository-source-heading"><div><div className="repository-kicker"><Users size={13}/>Справочник</div><h1>Источники публикаций</h1><p>Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={onAdd}><Plus size={15}/>Добавить источник</button></div>
-    <div className="panel repository-source-list"><div className="repository-source-list-head"><div><h2>Мой список</h2><p>{sources.length} источников · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => sources.filter(item => !item.active).forEach(item => onToggle(item.id))}>Выбрать все</button></div>
-      <div>{sources.map(source => <div key={source.id} className="repository-source-row"><button onClick={() => onToggle(source.id)} aria-label={`Выбрать ${source.name}`} className={`repository-check ${source.active ? 'checked' : ''}`}><Check size={12}/></button><button onClick={() => onEdit(source)} style={{backgroundColor:`${source.color}18`,color:source.color}} className="repository-source-avatar">{source.name.slice(0,1)}</button><div className="repository-source-copy"><button onClick={() => onEdit(source)}>{source.name}</button><a href={source.url} target="_blank" rel="noreferrer">{source.url.replace(/^https?:\/\//, '')}<ExternalLink size={9}/></a></div><span className={`repository-platform ${source.platform.toLowerCase()}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="repository-followers">{source.followers}</span><span className={`repository-status ${source.active ? '' : 'offline'}`}><i/>{source.active ? 'Доступен' : 'Отключён'}</span><button onClick={() => onDelete(source.id)} className="repository-delete" aria-label={`Удалить ${source.name}`}>×</button></div>)}</div>
-      <div className="repository-source-note">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div>
+    <div className="panel repository-source-list"><div className="repository-source-list-head"><input className="repository-select-all" type="checkbox" aria-label="Выбрать все подключённые источники" checked={allSourcesActive} disabled={!searchableSources.length} onChange={() => void onToggleAll(!allSourcesActive)}/><div><h2>Мой список</h2><p>{sources.length} источников · {searchableSources.length} доступны для выбора в поиске</p></div></div>
+      <div>{sources.map(source => {
+        const local = isLocalSourcePlatform(source.platform)
+        return <div key={source.id} className="repository-source-row">
+          <button type="button" onClick={() => onToggle(source.id)} disabled={local} title={local ? 'Поиск по этой площадке пока не подключён' : undefined} aria-label={`Выбрать ${source.name}`} className={`repository-check ${source.active ? 'checked' : ''}`}><Check size={12}/></button>
+          <button type="button" onClick={() => onEdit(source)} aria-label={`Редактировать ${source.name}`} style={{backgroundColor:local ? 'transparent' : `${source.color}18`,color:source.color}} className="repository-source-avatar">{isLocalSourcePlatform(source.platform) ? <img src={localPlatformIcon[source.platform]} alt=""/> : source.name.slice(0,1)}</button>
+          <div className="repository-source-copy"><button type="button" onClick={() => onEdit(source)}>{source.name}</button><a href={/^https?:\/\//i.test(source.url) ? source.url : `https://${source.url}`} target="_blank" rel="noreferrer">{source.url.replace(/^https?:\/\//, '')}<ExternalLink size={9}/></a></div>
+          <span className={`repository-platform ${source.platform.toLowerCase()}`}>{sourcePlatformLabel[source.platform]}</span>
+          <span className="repository-followers">{source.followers}</span>
+          <span className={`repository-status ${local ? 'pending' : source.active ? '' : 'offline'}`}><i/>{local ? 'Ожидает подключения' : source.active ? 'Доступен' : 'Отключён'}</span>
+          <button type="button" onClick={() => onDelete(source.id)} className="repository-delete" aria-label={`Удалить ${source.name}`}>×</button>
+        </div>
+      })}</div>
+      <div className="repository-source-note">Telegram и Дзен сохраняются в этом браузере. Поиск по ним станет доступен после подключения API.</div>
     </div>
   </section>
 }
 
-function SavedPage({ items, onOpen, onRemove, onNew, onFavorite }: { items: SavedQuery[]; onOpen: (item: SavedQuery) => void; onRemove: (id: number) => void; onNew: () => void; onFavorite: (id: number) => void }) {
+function SavedPage({ items, recentlyOpened, onOpen, onRestart, onRemove, onRemoveAll, onClearFavorites, onNew, onFavorite }: { items: SavedQuery[]; recentlyOpened: Record<number, number>; onOpen: (item: SavedQuery) => void; onRestart: (item: SavedQuery) => void; onRemove: (id: number) => void; onRemoveAll: () => void; onClearFavorites: () => void; onNew: () => void; onFavorite: (id: number) => void }) {
+  const [openActionsId, setOpenActionsId] = useState<number | null>(null)
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
+  const [queryFilter, setQueryFilter] = useState('')
+  const [favoriteFilter, setFavoriteFilter] = useState(false)
+  const [statusFilter, setStatusFilter] = useState<'all' | ApiSearch['status']>('all')
+  const [platformFilter, setPlatformFilter] = useState<'all' | Platform>('all')
+  const [sortBy, setSortBy] = useState<'newest' | 'results' | 'opened'>('newest')
+  useEffect(() => {
+    const closeMenus = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.saved-actions, .saved-bulk-actions')) return
+      setOpenActionsId(null)
+      setBulkMenuOpen(false)
+    }
+    const closeMenusOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        setOpenActionsId(null)
+        setBulkMenuOpen(false)
+      }
+    }
+    document.addEventListener('pointerdown', closeMenus)
+    document.addEventListener('keydown', closeMenusOnEscape)
+    return () => {
+      document.removeEventListener('pointerdown', closeMenus)
+      document.removeEventListener('keydown', closeMenusOnEscape)
+    }
+  }, [])
+
+  const availablePlatforms = [...new Set(items.flatMap(item => item.platforms ?? []))]
+  const filteredItems = items.filter(item => {
+    const needle = queryFilter.trim().toLocaleLowerCase('ru')
+    const matchesText = !needle || `${item.name} ${item.query}`.toLocaleLowerCase('ru').includes(needle)
+    return matchesText
+      && (!favoriteFilter || item.favorite)
+      && (statusFilter === 'all' || item.status === statusFilter)
+      && (platformFilter === 'all' || item.platforms?.includes(platformFilter))
+  }).sort((a, b) => {
+    if (sortBy === 'results') return (b.totalFound ?? -1) - (a.totalFound ?? -1)
+    if (sortBy === 'opened') return (recentlyOpened[b.id] ?? 0) - (recentlyOpened[a.id] ?? 0)
+    return Date.parse(b.createdAt ?? '') - Date.parse(a.createdAt ?? '')
+  })
+  const favoriteCount = items.filter(item => item.favorite).length
+  const formatDate = (value?: string | number) => {
+    if (!value) return '—'
+    const date = typeof value === 'number' ? new Date(value) : new Date(value)
+    return Number.isNaN(date.getTime()) ? '—' : new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', ...(typeof value === 'string' ? { year: 'numeric' as const } : {}), hour: typeof value === 'number' ? '2-digit' as const : undefined, minute: typeof value === 'number' ? '2-digit' as const : undefined }).format(date)
+  }
+  const statusLabel: Record<ApiSearch['status'], string> = { RUNNING: 'Выполняется', COMPLETED: 'Завершён', COMPLETED_PARTIAL: 'Частично', FAILED: 'Ошибка' }
+
   return <section className="saved-shell">
-    <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>Быстрый доступ к часто используемым темам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
-    <div className="saved-table-wrap"><table className="saved-queries-table"><thead><tr><th><input type="checkbox" aria-label="Выбрать все запросы"/></th><th>Название</th><th>Запрос</th><th>Период</th><th>Регион</th><th>Действия</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><button className={`favorite-star ${item.favorite ? 'favorite-on' : ''}`} title={item.favorite ? 'Убрать из избранного' : 'Добавить в избранное'} onClick={() => onFavorite(item.id)}><Star size={15} fill={item.favorite ? 'currentColor' : 'none'}/></button></td><td><button className="saved-query-name" onClick={() => onOpen(item)}>{item.name}</button></td><td><span className="saved-query-text">{item.query}</span></td><td>{item.period}</td><td>{item.region}</td><td><details className="saved-actions"><summary aria-label="Действия с запросом"><MoreHorizontal size={17}/></summary><div><button onClick={() => onOpen(item)}>Открыть запрос</button><button onClick={() => onFavorite(item.id)}>{item.favorite ? 'Убрать из избранного' : 'В избранное'}</button><button className="danger-action" onClick={() => onRemove(item.id)}>Удалить</button></div></details></td></tr>)}</tbody></table>{items.length === 0 && <div className="empty-state">Пока нет сохранённых запросов</div>}</div>
+    <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>История поисков и быстрый доступ к результатам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
+    <div className="saved-toolbar">
+      <label className="saved-filter-search"><Search size={15}/><input value={queryFilter} onChange={event => setQueryFilter(event.target.value)} placeholder="Найти запрос…" aria-label="Найти сохранённый запрос"/></label>
+      <div className="saved-filter-tabs"><button className={!favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(false)}>Все <span>{items.length}</span></button><button className={favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(true)}><Star size={12}/>Избранное <span>{favoriteCount}</span></button></div>
+      <label className="saved-select-filter"><span>Статус</span><select value={statusFilter} onChange={event => setStatusFilter(event.target.value as typeof statusFilter)}><option value="all">Все статусы</option><option value="COMPLETED">Завершён</option><option value="COMPLETED_PARTIAL">Частично</option><option value="RUNNING">Выполняется</option><option value="FAILED">Ошибка</option></select></label>
+      <label className="saved-select-filter"><span>Площадка</span><select value={platformFilter} onChange={event => setPlatformFilter(event.target.value as typeof platformFilter)} disabled={!availablePlatforms.length}><option value="all">Все площадки</option>{availablePlatforms.map(platform => <option key={platform} value={platform}>{platformLabel[platform]}</option>)}</select></label>
+      <label className="saved-select-filter saved-sort-filter"><span>Сортировка</span><select value={sortBy} onChange={event => setSortBy(event.target.value as typeof sortBy)}><option value="newest">Сначала новые</option><option value="results">Больше результатов</option><option value="opened">Недавно открытые</option></select></label>
+    </div>
+    <div className="saved-table-wrap"><table className="saved-queries-table"><thead><tr><th><div className="saved-bulk-actions"><input type="checkbox" aria-label="Массовые действия с запросами" title="Массовые действия" checked={bulkMenuOpen} disabled={items.length === 0} onChange={() => { setOpenActionsId(null); setBulkMenuOpen(open => !open) }}/>{bulkMenuOpen && <div className="saved-bulk-menu"><button type="button" onClick={() => { setBulkMenuOpen(false); onClearFavorites() }}>Убрать все из избранного</button><button type="button" className="danger-action" onClick={() => { setBulkMenuOpen(false); onRemoveAll() }}>Удалить все запросы</button></div>}</div></th><th>Название</th><th>Запрос</th><th>Период</th><th>Регион</th><th>Действия</th></tr></thead><tbody>{filteredItems.map(item => <tr key={item.id}><td><button className={`favorite-star ${item.favorite ? 'favorite-on' : ''}`} title={item.favorite ? 'Убрать из избранного' : 'Добавить в избранное'} onClick={() => onFavorite(item.id)}><Star size={15} fill={item.favorite ? 'currentColor' : 'none'}/></button></td><td className="saved-name-cell"><button className="saved-query-name" onClick={() => onOpen(item)}>{item.name}</button><div className="saved-row-meta">{item.status && <span className={`saved-status saved-status-${item.status.toLowerCase()}`}>{statusLabel[item.status]}</span>}<span>{item.totalFound === undefined ? 'Число публикаций не указано' : `${item.totalFound} публ.`}</span>{item.createdAt && <span>{formatDate(item.createdAt)}</span>}</div>{recentlyOpened[item.id] && <small className="saved-last-opened">Открыт: {formatDate(recentlyOpened[item.id])}</small>}{item.platforms?.length ? <div className="saved-platform-tags">{[...new Set(item.platforms)].map(platform => <i key={platform} className={`saved-platform-tag ${platform.toLowerCase()}`}>{platform}</i>)}</div> : null}</td><td><span className="saved-query-text">{item.query}</span></td><td>{item.period}</td><td>{item.region}</td><td><details className="saved-actions" open={openActionsId === item.id}><summary aria-label="Действия с запросом" onClick={event => { event.preventDefault(); setBulkMenuOpen(false); setOpenActionsId(current => current === item.id ? null : item.id) }}><MoreHorizontal size={17}/></summary><div><button onClick={() => { setOpenActionsId(null); onOpen(item) }}>Открыть результаты</button><button onClick={() => { setOpenActionsId(null); onRestart(item) }}>Запустить заново</button><button onClick={() => { setOpenActionsId(null); onFavorite(item.id) }}>{item.favorite ? 'Убрать из избранного' : 'В избранное'}</button><button className="danger-action" onClick={() => { setOpenActionsId(null); onRemove(item.id) }}>Удалить</button></div></details></td></tr>)}</tbody></table>{items.length === 0 ? <div className="saved-empty-state"><Bookmark size={24}/><strong>Пока нет сохранённых запросов</strong><span>Создайте запрос, чтобы быстро возвращаться к его результатам.</span><button className="button-primary" onClick={onNew}><Plus size={15}/>Создать первый запрос</button></div> : filteredItems.length === 0 && <div className="saved-empty-state"><Search size={22}/><strong>По этим фильтрам ничего нет</strong><span>Измените запрос или сбросьте фильтры.</span><button className="soft-action" onClick={() => { setQueryFilter(''); setFavoriteFilter(false); setStatusFilter('all'); setPlatformFilter('all') }}>Сбросить фильтры</button></div>}</div>
   </section>
 }
 

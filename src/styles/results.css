@@ -147,8 +147,8 @@ html[data-theme='dark'] .repository-source-list-head h2,html[data-theme='dark'] 
 html[data-theme='dark'] .repository-source-list-head p,html[data-theme='dark'] .repository-source-copy a,html[data-theme='dark'] .repository-followers,html[data-theme='dark'] .repository-source-note{color:#91a4ba}
 html[data-theme='dark'] .repository-source-note{background:#123344}
 html[data-theme='dark'] .saved-query-text,html[data-theme='dark'] .period-cell{color:#a7b7cb}
-html[data-theme='dark'] .saved-actions>div,html[data-theme='dark'] .source-actions details>div,html[data-theme='dark'] .source-modal{border-color:#49536f;background:#252b46;color:#dce6f4}
-html[data-theme='dark'] .saved-actions button,html[data-theme='dark'] .source-actions details button{color:#c1cee0}
+html[data-theme='dark'] .saved-actions>div,html[data-theme='dark'] .saved-bulk-menu,html[data-theme='dark'] .source-actions details>div,html[data-theme='dark'] .source-modal{border-color:#49536f;background:#252b46;color:#dce6f4}
+html[data-theme='dark'] .saved-actions button,html[data-theme='dark'] .saved-bulk-menu button,html[data-theme='dark'] .source-actions details button{color:#c1cee0}
 html[data-theme='dark'] .modal-backdrop{background:#020a16b8}
 html[data-theme='dark'] .auth-card{border:1px solid #49536f;background:#252b46;color:#e6edf8}
 html[data-theme='dark'] .auth-card h1,html[data-theme='dark'] .auth-field{color:#f0f5fb}

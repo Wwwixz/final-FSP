@@ -1249,16 +1249,20 @@ html[data-theme='dark'] :is(.page-content a,.auth-policy,.auth-alt button):hover
 
 html[data-theme='dark'] :is(
   .saved-actions>div,
+  .saved-bulk-menu,
   .source-actions details>div,
   .profile-menu
 ){
   border-color:var(--dark-border);
-  background:var(--dark-surface-solid)!important;
+  background:rgba(37,43,70,.84)!important;
   color:var(--dark-text);
   box-shadow:var(--dark-shadow);
+  -webkit-backdrop-filter:blur(18px) saturate(140%);
+  backdrop-filter:blur(18px) saturate(140%);
 }
 html[data-theme='dark'] :is(
   .saved-actions button,
+  .saved-bulk-menu button,
   .source-actions details button,
   .profile-menu button
 ){
@@ -1266,6 +1270,7 @@ html[data-theme='dark'] :is(
 }
 html[data-theme='dark'] :is(
   .saved-actions button,
+  .saved-bulk-menu button,
   .source-actions details button,
   .profile-menu button
 ):hover{
@@ -1995,18 +2000,22 @@ html[data-theme='dark'] :is(
 html:has(.search-page),
 body:has(.search-page),
 html:has(.results-page),
-body:has(.results-page){
+body:has(.results-page),
+html:has(.repository-sources),
+body:has(.repository-sources){
   height:100%;
   overflow:hidden;
 }
 .app-shell:has(.search-page),
-.app-shell:has(.results-page){
+.app-shell:has(.results-page),
+.app-shell:has(.repository-sources){
   height:100dvh;
   min-height:0;
   overflow:hidden;
 }
 .app-shell:has(.search-page) .main-area,
-.app-shell:has(.results-page) .main-area{
+.app-shell:has(.results-page) .main-area,
+.app-shell:has(.repository-sources) .main-area{
   height:100dvh;
   min-height:0;
   overflow-x:hidden;
@@ -2017,7 +2026,8 @@ body:has(.results-page){
   -webkit-overflow-scrolling:touch;
 }
 body:has(.search-page) .page-content--flush,
-.app-shell:has(.results-page) .page-content{
+.app-shell:has(.results-page) .page-content,
+.app-shell:has(.repository-sources) .page-content{
   height:auto;
   overflow:visible;
 }
@@ -2712,5 +2722,98 @@ html[data-theme='dark'] .results-page .results-search-row::before{display:none}
 .results-page .platform-filter-invalid .platform-filter{
   border-color:#e27689!important;
   box-shadow:0 0 0 3px rgba(226,118,137,.22),inset 0 1px rgba(255,255,255,.1)!important;
+}
+
+/* Saved searches typography matches the rest of the application. */
+.saved-page-head h1{font-size:clamp(27px,2.2vw,34px)}
+.saved-page-head p{font-size:14px;line-height:1.55}
+.saved-filter-search input,.saved-filter-tabs button,.saved-select-filter,.saved-select-filter select{font-size:13px}
+.saved-filter-tabs button span{font-size:11px}
+.saved-queries-table th{font-size:13px}
+.saved-queries-table td,.saved-query-name,.saved-query-text{font-size:14px}
+.saved-row-meta,.saved-last-opened{font-size:11px}
+.saved-status,.saved-platform-tag{font-size:10px}
+.saved-actions button,.saved-bulk-menu button{font-size:13px}
+.saved-empty-state>strong{font-size:16px}
+.saved-empty-state>span{font-size:13px}
+@media(max-width:560px){
+  .saved-page-head h1{font-size:26px}
+  .saved-page-head p{font-size:13px}
+  .saved-filter-search input,.saved-filter-tabs button,.saved-select-filter,.saved-select-filter select{font-size:12px}
+  .saved-queries-table td,.saved-query-name,.saved-query-text{font-size:13px}
+  .saved-row-meta,.saved-last-opened{font-size:10px}
+  .saved-actions button,.saved-bulk-menu button{font-size:12px}
+}
+
+.repository-source-list .repository-source-list-head{justify-content:flex-start;gap:12px}
+.repository-source-list-head .repository-select-all{width:16px;height:16px;flex:none;margin:0;accent-color:#e62443;cursor:pointer}
+html[data-theme='dark'] .repository-source-list-head .repository-select-all{accent-color:var(--dark-accent)}
+@media(max-width:760px){
+  .repository-source-list .repository-source-list-head{align-items:center;flex-direction:row}
+}
+
+.repository-source-avatar img{display:block;width:100%;height:100%;border-radius:9px;object-fit:contain}
+.repository-platform.tg{background:#e8f6fc;color:#188dc5}
+.repository-platform.dzen{background:#ececf0;color:#202022}
+.repository-status.pending{color:#8b789d}
+.repository-status.pending i{background:#ae96bf}
+.repository-check:disabled{cursor:not-allowed;opacity:.42}
+.source-platform-control{display:flex;align-items:center;gap:9px}
+.source-platform-control img{width:28px;height:28px;flex:none;border-radius:6px;object-fit:contain}
+.source-platform-control select{min-width:0;flex:1}
+.source-local-hint{margin:10px 0 0;color:#68778d;font-size:12px;line-height:1.45}
+html[data-theme='dark'] .repository-platform.tg{background:#124462;color:#8bd9ff}
+html[data-theme='dark'] .repository-platform.dzen{background:#434553;color:#f4f4f6}
+html[data-theme='dark'] .repository-status.pending{color:#c3abd4}
+html[data-theme='dark'] .source-local-hint{color:#aec1d5}
+@media(max-width:760px){
+  .repository-source-row:has(.repository-platform.tg,.repository-platform.dzen) .repository-platform{grid-column:2/5;grid-row:2}
+  .repository-source-row:has(.repository-platform.tg,.repository-platform.dzen) .repository-status{grid-column:2/5;grid-row:3}
+}
+
+/* The glass search controls need a lighter surface and darker text by day. */
+html[data-theme='light'] .results-page .results-search-panel,
+html[data-theme='light'] .search-page .search-card,
+html[data-theme='light'] .search-page .parameters-card{
+  border-color:rgba(255,255,255,.82)!important;
+  background:linear-gradient(145deg,rgba(244,249,255,.86),rgba(214,232,248,.8))!important;
+  box-shadow:0 18px 42px rgba(40,78,116,.18),inset 0 1px rgba(255,255,255,.92)!important;
+}
+html[data-theme='light'] .results-page .results-search-row,
+html[data-theme='light'] .search-page .search-card .search-row{
+  border-color:rgba(178,205,230,.7)!important;
+  background:rgba(255,255,255,.68)!important;
+  box-shadow:0 8px 22px rgba(42,82,125,.1),inset 0 1px rgba(255,255,255,.86)!important;
+}
+html[data-theme='light'] .results-page .results-search-row .results-query-field,
+html[data-theme='light'] .search-page .search-card .search-row>input{
+  border-color:rgba(180,204,226,.65)!important;
+  background:rgba(255,255,255,.82)!important;
+  color:#223b58!important;
+}
+html[data-theme='light'] .results-page .results-query-field input,
+html[data-theme='light'] .search-page .search-card .search-row>input{color:#223b58!important}
+html[data-theme='light'] .results-page .results-query-field input::placeholder,
+html[data-theme='light'] .search-page .search-card .search-row>input::placeholder{color:#647b95!important}
+html[data-theme='light'] .results-page .results-search-examples button,
+html[data-theme='light'] .search-page .search-tags button{
+  border-color:rgba(167,194,220,.7)!important;
+  background:rgba(255,255,255,.56)!important;
+  color:#47617c!important;
+}
+html[data-theme='light'] .results-page .results-search-filters{
+  border-color:rgba(174,203,228,.7)!important;
+  background:rgba(245,250,255,.65)!important;
+  box-shadow:0 10px 24px rgba(47,88,129,.1),inset 0 1px rgba(255,255,255,.75)!important;
+}
+html[data-theme='light'] .results-page .results-search-filters label>div,
+html[data-theme='light'] .results-page .results-search-filters>.results-region>.region-select,
+html[data-theme='light'] .results-page .results-search-filters fieldset.platform-filter{
+  border-color:rgba(176,202,225,.68)!important;
+  background:rgba(255,255,255,.7)!important;
+}
+html[data-theme='dark'] .repository-source-avatar:not(:has(img)){
+  background-color:rgba(117,177,226,.17)!important;
+  color:#d9edff!important;
 }
 

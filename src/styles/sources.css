@@ -40,6 +40,11 @@ body:has(.sources-shell) .page-content{max-width:none;min-height:100vh;padding:1
 .source-actions details button{display:block;width:100%;border:0;border-radius:4px;background:none;padding:7px 8px;color:#425168;text-align:left;font-size:9px}
 .source-actions details button:hover{background:#f2f5f8}
 .source-actions details button.danger-action{color:#dc2943}
+.source-modal-error{display:flex;align-items:flex-start;gap:9px;margin:0 0 14px;border:1px solid #f1c2c8;border-radius:8px;background:#fff3f4;padding:10px 11px;color:#bd263e;font-size:12px;line-height:1.45}
+.source-modal-error>svg{flex:none;margin-top:1px}
+.source-modal-error span{flex:1;overflow-wrap:anywhere}
+.source-modal-error button{display:grid;flex:none;place-items:center;border:0;background:transparent;padding:0;color:inherit}
+html[data-theme='dark'] .source-modal-error{border-color:#8b4050;background:#3b2333;color:#ffb6c2}
 @media(max-width:950px){.sources-toolbar{align-items:stretch;flex-direction:column;gap:0}.sources-tools{padding:10px 0}.sources-tools .table-search{flex:1;width:auto}.sources-table-wrap{overflow-x:auto}.sources-table{min-width:780px}}
 @media(max-width:600px){body:has(.sources-shell) .page-content{padding:7px}.sources-shell{min-height:calc(100vh - 14px)}.sources-page-head{padding:18px 16px 15px}.sources-page-head h1{font-size:22px}.sources-toolbar{padding:7px 12px 0}.sources-toolbar .tabs{width:100%;overflow-x:auto}.sources-toolbar .tabs button{white-space:nowrap}.sources-tools{align-items:stretch;flex-direction:column}.sources-tools .button-primary{width:100%}.sources-table-wrap{margin:0 12px 15px}}
 
