@@ -4,9 +4,9 @@ import { api, downloadSearchExport, waitForSearch } from './api'
 import type { ApiPublication, ApiSearch, ApiSource } from './api'
 import {
   ArrowLeft, ArrowRight,
-  Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert,
-  CircleHelp, Download, ExternalLink, Eye, EyeOff, Heart, Lock, Mail, MapPin,
-  Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Star, Sun, User, Users, X,
+  BarChart3, Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert,
+  CircleHelp, Download, ExternalLink, Eye, EyeOff, Frown, Heart, Lock, Mail, MapPin, Meh,
+  Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Smile, Star, Sun, User, Users, X,
 } from 'lucide-react'
 
 type Page = 'login' | 'register' | 'results' | 'publication' | 'sources' | 'saved' | 'settings'
@@ -106,6 +106,22 @@ const mapPublication = (publication: ApiPublication): Publication => ({
   aiComment: publication.aiComment,
 })
 
+// The API may cap the requested page size. Load every server page once so the
+// results view can reliably split publications into its own pages of ten.
+async function loadAllPublications(searchId: number) {
+  const firstPage = await api.publications(searchId, 0, 100, 'relevance')
+  const all = [...firstPage.content]
+  let page = 1
+  while (!firstPage.last && all.length < firstPage.totalElements) {
+    const nextPage = await api.publications(searchId, page, firstPage.size || 100, 'relevance')
+    if (!nextPage.content.length) break
+    all.push(...nextPage.content)
+    if (nextPage.last) break
+    page += 1
+  }
+  return { ...firstPage, content: all, totalElements: Math.max(firstPage.totalElements, all.length) }
+}
+
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить запрос к API.'
 const formatApiPeriod = (search: ApiSearch) => `${search.dateFrom ?? '—'} — ${search.dateTo ?? '—'}`
 
@@ -136,6 +152,7 @@ function App() {
   const [sourceEdit, setSourceEdit] = useState<number | null>(null)
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
+  const [selectedPublicationIndex, setSelectedPublicationIndex] = useState(-1)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode)
   const [cityBackground, setCityBackground] = useState<CityBackground>(() => getCityBackground(themeMode))
@@ -248,7 +265,7 @@ function App() {
       if (searchRunRef.current !== runId) return
       setSearchStatus(completed.status)
       if (completed.status === 'FAILED') throw new Error(completed.error || 'Поиск завершился с ошибкой.')
-      const publicationPage = await api.publications(created.id)
+      const publicationPage = await loadAllPublications(created.id)
       if (searchRunRef.current !== runId) return
       setResults(publicationPage.content.map(mapPublication))
       setNotice(completed.status === 'COMPLETED_PARTIAL'
@@ -271,7 +288,7 @@ function App() {
     setIsSearching(true)
     setApiError('')
     try {
-      const [search, publicationPage] = await Promise.all([api.search(item.id), api.publications(item.id)])
+      const [search, publicationPage] = await Promise.all([api.search(item.id), loadAllPublications(item.id)])
       setSearchId(item.id)
       setSearchStatus(search.status)
       setResults(publicationPage.content.map(mapPublication))
@@ -379,9 +396,9 @@ function App() {
           results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching}
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
-          onSubmit={runSearch} onExport={exportResults} onOpen={item => { setSelectedPublication(item); setPage('publication') }} validationSubmitted={validationSubmitted}
+          onSubmit={runSearch} onExport={exportResults} onOpen={item => { setSelectedPublication(item); setSelectedPublicationIndex(results.findIndex(result => result.id === item.id)); setPage('publication') }} validationSubmitted={validationSubmitted}
         />}
-        {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} onBack={() => setPage('results')}/>} 
+        {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} position={selectedPublicationIndex + 1} total={results.length} onPrevious={() => { const next = results[selectedPublicationIndex - 1]; if (next) { setSelectedPublication(next); setSelectedPublicationIndex(selectedPublicationIndex - 1); window.scrollTo({ top: 0, behavior: 'smooth' }) } }} onNext={() => { const next = results[selectedPublicationIndex + 1]; if (next) { setSelectedPublication(next); setSelectedPublicationIndex(selectedPublicationIndex + 1); window.scrollTo({ top: 0, behavior: 'smooth' }) } }} onBack={() => setPage('results')}/>}
         {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onDelete={deleteSource}/>}
         {page === 'saved' && <SavedPage
           items={saved} onOpen={openSaved} onRemove={removeSaved}
@@ -676,8 +693,8 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
     </div>
     <div className="results-search-examples"><span>Например:</span>{exampleTopics.map(topic => <button type="button" key={topic} onClick={() => setQuery(topic)}>{topic}</button>)}</div>
     <div className="results-search-filters">
-      <label className={validationSubmitted && !periodStart ? 'field-invalid-label' : ''}><span>Период с</span><CompactDateInput value={periodStart} max={capToToday(periodEnd) || undefined} rangeStart={periodStart} rangeEnd={periodEnd} label="Начало периода" invalid={validationSubmitted && !periodStart} onChange={setPeriodStart}/></label>
-      <label className={validationSubmitted && !periodEnd ? 'field-invalid-label' : ''}><span>по</span><CompactDateInput value={periodEnd} min={periodStart} max={todayInputValue()} rangeStart={periodStart} rangeEnd={periodEnd} label="Конец периода" invalid={validationSubmitted && !periodEnd} onChange={setPeriodEnd}/></label>
+      <label className={validationSubmitted && !periodStart ? 'field-invalid-label' : ''}><span>Период с</span><CompactDateInput value={periodStart} min="2000-01-01" max={capToToday(periodEnd) || undefined} rangeStart={periodStart} rangeEnd={periodEnd} label="Начало периода" invalid={validationSubmitted && !periodStart} onChange={setPeriodStart}/></label>
+      <label className={validationSubmitted && !periodEnd ? 'field-invalid-label' : ''}><span>по</span><CompactDateInput value={periodEnd} min={periodStart || '2000-01-01'} max={todayInputValue()} rangeStart={periodStart} rangeEnd={periodEnd} label="Конец периода" invalid={validationSubmitted && !periodEnd} onChange={setPeriodEnd}/></label>
       <div className={`results-region ${validationSubmitted && !region ? 'field-invalid-label' : ''}`}><span>Регион</span><RegionDropdown value={region} options={regions} onChange={setRegion}/></div>
       <div className={`platform-filter-field ${validationSubmitted && !platforms.length ? 'platform-filter-invalid' : ''}`}><span>Соцсети</span><fieldset className={`platform-filter ${platforms.length === 0 ? 'platform-filter-empty' : ''}`} aria-invalid={platforms.length === 0}><legend>Соцсети</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={`${platforms.includes(item) ? 'selected' : 'platform-choice-unselected'} ${platforms.length === 0 ? 'platform-choice-empty' : ''}`} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}{platforms.length === 0 && <small className="platform-filter-hint">Выберите соцсеть для поиска</small>}</fieldset></div>
     </div>
@@ -803,23 +820,35 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
     </div>
     <section ref={resultsCardRef} className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><div className="sort-control"><span>Сортировка</span><SortDropdown value={sort} onChange={setSort}/></div></div>
       <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className="result-photo publication-thumb has-image"><img className="media-photo" src={item.image} alt=""/><span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
-      <div className="results-pagination"><span>Показано <b>{results.length ? pageStart + 1 : 0}–{Math.min(pageStart + pageSize, results.length)}</b> из <b>{results.length}</b> публикаций</span><div className="results-page-navigation"><div className="results-page-controls"><button type="button" aria-label="Предыдущая страница" title="Предыдущая страница" disabled={resultPage === 1} onClick={() => goToResultPage(resultPage - 1)}><ChevronLeft size={16}/></button><span className="results-current-page" aria-label={`Текущая страница ${resultPage}`}>{resultPage}</span><button type="button" aria-label="Следующая страница" title="Следующая страница" disabled={resultPage === pages} onClick={() => goToResultPage(resultPage + 1)}><ChevronRight size={16}/></button></div></div></div>
+      <div className="results-pagination"><span>Показано <b>{results.length ? pageStart + 1 : 0}–{Math.min(pageStart + pageSize, results.length)}</b> из <b>{results.length}</b> публикаций</span><div className="results-page-navigation"><span className="results-page-count">Страница <b>{resultPage}</b> из <b>{pages}</b></span><div className="results-page-controls"><button type="button" aria-label="Предыдущая страница" title="Предыдущая страница" disabled={resultPage === 1} onClick={() => goToResultPage(resultPage - 1)}><ChevronLeft size={16}/></button><span className="results-current-page" aria-label={`Текущая страница ${resultPage} из ${pages}`}>{resultPage}</span><button type="button" aria-label="Следующая страница" title="Следующая страница" disabled={resultPage === pages} onClick={() => goToResultPage(resultPage + 1)}><ChevronRight size={16}/></button></div></div></div>
     </section>
     </> : <div className="results-empty-state"><span><Search size={24}/></span><h2>Введите запрос, чтобы начать поиск</h2><p>Результаты публикаций появятся здесь сразу после нажатия кнопки «Найти».</p></div>}
   </div>
 }
 
-function PublicationPage({ item, onBack }: { item: Publication; onBack: () => void }) {
+function PublicationPage({ item, position, total, onPrevious, onNext, onBack }: { item: Publication; position: number; total: number; onPrevious: () => void; onNext: () => void; onBack: () => void }) {
   const [liked, setLiked] = useState(false)
+  const [savedPublications, setSavedPublications] = useState<number[]>([])
+  const publicationSaved = savedPublications.includes(item.id)
+  const sentimentText = `${item.title} ${item.excerpt}`.toLowerCase()
+  const positiveSignals = ['побед', 'успех', 'празд', 'подар', 'открыт', 'развит', 'улучш', 'удач'].filter(word => sentimentText.includes(word)).length
+  const negativeSignals = ['авари', 'опас', 'жалоб', 'наруш', 'проблем', 'погиб', 'критик', 'ущерб'].filter(word => sentimentText.includes(word)).length
+  const positiveSentiment = Math.min(50, 20 + positiveSignals * 9)
+  const negativeSentiment = Math.min(35, 9 + negativeSignals * 9)
+  const neutralSentiment = 100 - positiveSentiment - negativeSentiment
+  const dominantSentiment = positiveSentiment > neutralSentiment && positiveSentiment > negativeSentiment
+    ? { label: 'Позитивная', className: 'positive', icon: <Smile size={17}/> }
+    : negativeSentiment > neutralSentiment
+      ? { label: 'Негативная', className: 'negative', icon: <Frown size={17}/> }
+      : { label: 'Нейтральная', className: 'neutral', icon: <Meh size={17}/> }
 
   return <div className="publication-page">
-    <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+    <div className="publication-toolbar"><button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button><div className="publication-navigation" aria-label="Навигация по публикациям"><button type="button" aria-label="Предыдущая публикация" title="Предыдущая публикация" disabled={position <= 1} onClick={onPrevious}><ChevronLeft size={17}/></button><span>{position > 0 ? `${position} из ${total}` : 'Публикация'}</span><button type="button" aria-label="Следующая публикация" title="Следующая публикация" disabled={position <= 0 || position >= total} onClick={onNext}><ChevronRight size={17}/></button></div></div>
     <div className="publication-layout">
       <article className="publication-card">
         <header className="publication-header">
           <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{item.source.slice(0, 1)}</div>
           <div><strong>{item.source}</strong><span>{item.date}</span></div>
-          <span className={`publication-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span>
         </header>
         <img className="publication-cover" src={item.image} alt={item.title}/>
         <div className="publication-content">
@@ -832,14 +861,27 @@ function PublicationPage({ item, onBack }: { item: Publication; onBack: () => vo
         <footer className="publication-actions">
           <button type="button" className={liked ? 'liked' : ''} onClick={() => setLiked(!liked)}><Heart size={16} fill={liked ? 'currentColor' : 'none'}/>{item.likes + (liked ? 1 : 0)}</button>
           <span><Eye size={16}/>{item.views}</span><span><Share2 size={16}/>{item.reposts}</span>
-          <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
+          <a className="primary-action publication-primary-action" href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
         </footer>
       </article>
-      <aside className="publication-info">
-        <h2>О публикации</h2>
-        <dl><div><dt>Источник</dt><dd>{item.source}</dd></div><div><dt>Площадка</dt><dd>{platformLabel[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.date}</dd></div><div><dt>Соответствие запросу</dt><dd>{item.kind}</dd></div></dl>
-        <button type="button"><Bookmark size={15}/>Сохранить публикацию</button>
+      <div className="publication-aside-column"><aside className="publication-info">
+        <div className="publication-info-heading"><span><Newspaper size={18}/></span><div><h2>О публикации</h2><p>Основные сведения</p></div></div>
+        <dl>
+          <div className="publication-info-row"><span className="publication-info-icon"><Users size={15}/></span><div className="publication-info-copy"><dt>Источник</dt><dd>{item.source}</dd></div></div>
+          <div className="publication-info-row"><span className="publication-info-icon"><PlatformBadge platform={item.platform} size={20}/></span><div className="publication-info-copy"><dt>Площадка</dt><dd><span className={`publication-info-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span></dd></div></div>
+          <div className="publication-info-row"><span className="publication-info-icon"><CalendarDays size={15}/></span><div className="publication-info-copy"><dt>Дата публикации</dt><dd>{item.date}</dd></div></div>
+          <div className="publication-info-row"><span className="publication-info-icon"><Check size={15}/></span><div className="publication-info-copy"><dt>Соответствие запросу</dt><dd><span className="publication-info-match">{item.kind}</span></dd></div></div>
+        </dl>
+        <button type="button" aria-pressed={publicationSaved} className={`primary-action publication-primary-action ${publicationSaved ? 'publication-saved' : ''}`} onClick={() => setSavedPublications(current => publicationSaved ? current.filter(id => id !== item.id) : [...current, item.id])}><Bookmark size={15} fill={publicationSaved ? 'currentColor' : 'none'}/>{publicationSaved ? 'Публикация сохранена' : 'Сохранить публикацию'}</button>
       </aside>
+      <section className="publication-sentiment" aria-labelledby="publication-sentiment-title">
+        <div className="publication-sentiment-command"><div className="publication-sentiment-heading"><span><BarChart3 size={18}/></span><div><h2 id="publication-sentiment-title">Эмоциональность</h2><p>Анализ тональности текста</p></div></div><div className={`publication-sentiment-summary ${dominantSentiment.className}`}><span>{dominantSentiment.icon}</span><div><small>Общий тон</small><strong>{dominantSentiment.label}</strong></div></div></div>
+        <div className="publication-sentiment-bars">
+          <div className="sentiment-row positive"><div><span>Позитивная</span><span className="sentiment-row-actions"><b>{positiveSentiment}%</b><MoreHorizontal size={14}/><ArrowRight size={14}/></span></div><i><span style={{ width: `${positiveSentiment}%` }}/></i></div>
+          <div className="sentiment-row neutral"><div><span>Нейтральная</span><span className="sentiment-row-actions"><b>{neutralSentiment}%</b><MoreHorizontal size={14}/><ArrowRight size={14}/></span></div><i><span style={{ width: `${neutralSentiment}%` }}/></i></div>
+          <div className="sentiment-row negative"><div><span>Негативная</span><span className="sentiment-row-actions"><b>{negativeSentiment}%</b><MoreHorizontal size={14}/><ArrowRight size={14}/></span></div><i><span style={{ width: `${negativeSentiment}%` }}/></i></div>
+        </div>
+      </section></div>
     </div>
   </div>
 }
