@@ -152,6 +152,11 @@ function App() {
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode)
   const [cityBackground, setCityBackground] = useState<CityBackground>(() => getCityBackground(themeMode))
+  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
+
+  useEffect(() => {
+    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
+  }, [customLinks])
 
   const handleLogout = async () => {
     try {
@@ -274,11 +279,12 @@ function App() {
     setApiError('')
   }
   const executeSearch = async (params: { query: string; dateFrom?: string; dateTo?: string; region?: string }) => {
-    const sourceIds = searchMode === 'ALL_PLATFORMS'
+    const trimmedLinks = customLinks.map(link => link.url.trim()).filter(Boolean)
+    const platformSourceIds = searchMode === 'ALL_PLATFORMS'
       ? []
       : sources.filter(source => source.active && platforms.includes(source.platform)).map(source => source.id)
-    if (searchMode === 'BY_SOURCES' && !sourceIds.length) {
-      setApiError('Выберите хотя бы одну площадку с активным источником.')
+    if (searchMode === 'BY_SOURCES' && !platformSourceIds.length && !trimmedLinks.length) {
+      setApiError('Выберите хотя бы одну площадку или добавьте ссылку на сайт.')
       return
     }
 
@@ -290,6 +296,35 @@ function App() {
     setPage('results')
     setResults([])
     try {
+      // Ссылки на произвольные сайты сохраняются как источники площадки SITE
+      // и участвуют в поиске наравне с выбранными площадками.
+      const customSourceIds: number[] = []
+      const addedSources: Source[] = []
+      for (const rawUrl of trimmedLinks) {
+        const url = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`
+        const existing = sources.find(source => source.url && source.url.toLowerCase() === url.toLowerCase())
+        if (existing) {
+          if (!customSourceIds.includes(existing.id)) customSourceIds.push(existing.id)
+          continue
+        }
+        try {
+          const host = (() => { try { return new URL(url).host || url } catch { return url } })()
+          const createdSource = await api.createSource({ name: host, platform: 'SITE', url, active: true })
+          const mapped = mapSource(createdSource)
+          customSourceIds.push(mapped.id)
+          addedSources.push(mapped)
+        } catch (error) {
+          if (error instanceof ApiError && /существов/i.test(error.message)) {
+            const all = await api.sources()
+            const match = all.find(source => source.url && source.url.toLowerCase() === url.toLowerCase())
+            if (match && !customSourceIds.includes(match.id)) customSourceIds.push(match.id)
+          } else {
+            throw error
+          }
+        }
+      }
+      if (addedSources.length) setSources(current => [...current, ...addedSources.filter(add => !current.some(source => source.id === add.id))])
+      const sourceIds = searchMode === 'ALL_PLATFORMS' ? [] : [...platformSourceIds, ...customSourceIds]
       const created = await api.createSearch({
         query: params.query,
         searchType: 'TOPIC',
@@ -535,6 +570,7 @@ function App() {
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
           onSubmit={runSearch} onExport={exportResults} searchMode={searchMode} setSearchMode={setSearchMode} onOpen={item => { setSelectedPublication(item); setPage('publication') }}
+          customLinks={customLinks} setCustomLinks={setCustomLinks}
           onSave={saveCurrentSearch}
         />}
         {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} onBack={() => setPage('results')}/>} 
@@ -782,14 +818,12 @@ function RegionDropdown({ value, options, onChange, className = '' }: { value: s
   </div>
 }
 
-function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false, searchMode, setSearchMode }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
+function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false, searchMode, setSearchMode, customLinks, setCustomLinks }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void; customLinks: CustomSearchLink[]; setCustomLinks: (action: CustomSearchLink[] | ((current: CustomSearchLink[]) => CustomSearchLink[])) => void }) {
   const [officialOnly, setOfficialOnly] = useState(false)
   const [withMedia, setWithMedia] = useState(false)
   const [excludeReposts, setExcludeReposts] = useState(false)
-  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
   const focusCustomLinkRef = useRef<string | null>(null)
   useEffect(() => {
-    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
     if (focusCustomLinkRef.current) {
       document.getElementById(`custom-search-link-${focusCustomLinkRef.current}`)?.focus()
       focusCustomLinkRef.current = null
@@ -909,7 +943,7 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
 }
 function Toggle({ checked, onChange, title, description }: { checked: boolean; onChange: () => void; title: string; description: string }) { return <div className="toggle-row"><div><b>{title}</b><span>{description}</span></div><button type="button" className={`switch ${checked ? 'switch-on' : ''}`} onClick={onChange} role="switch" aria-checked={checked}><i/></button></div> }
 
-function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, onSave, searchMode, setSearchMode }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; onSave: () => void; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
+function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, onSave, searchMode, setSearchMode, customLinks, setCustomLinks }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; onSave: () => void; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void; customLinks: CustomSearchLink[]; setCustomLinks: (action: CustomSearchLink[] | ((current: CustomSearchLink[]) => CustomSearchLink[])) => void }) {
   const [resultPage, setResultPage] = useState(1)
   const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
   const [savedResult, setSavedResult] = useState(false)
@@ -934,13 +968,13 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
     return () => observer.disconnect()
   }, [resultPage, pages])
   return <div className="design-page results-page">
-    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} searchMode={searchMode} setSearchMode={setSearchMode} isSearching={isSearching}/>
+    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} searchMode={searchMode} setSearchMode={setSearchMode} isSearching={isSearching} customLinks={customLinks} setCustomLinks={setCustomLinks}/>
     {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники.</p></div> : <>
     <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => { onSave(); setSavedResult(true) }} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
     <div className="results-summary-bar">
       <div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div>
       <div className="summary-filter"><MapPin size={15}/><span>{region}</span></div>
-      <span className="results-platform-summary">{platforms.length ? platforms.join(' · ') : 'Площадки не выбраны'}</span>
+      <span className="results-platform-summary">{(() => { const sites = customLinks.filter(link => link.url.trim()).length; const parts: string[] = [...platforms]; if (sites) parts.push(sites === 1 ? 'сайт' : `сайтов: ${sites}`); return parts.length ? parts.join(' · ') : 'Площадки не выбраны' })()}</span>
     </div>
     <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select></label></div>
       <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className={`result-photo publication-thumb ${item.image ? 'has-image' : 'no-image'}`}>{item.image ? <img className="media-photo" src={item.image} alt="" loading="lazy"/> : <span className="publication-thumb-empty"><ImageOff size={18}/></span>}<span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
