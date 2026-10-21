@@ -63,8 +63,8 @@ body:has(.search-page) .page-content--flush{isolation:isolate;overflow:hidden;pa
 .search-row{display:flex;align-items:center;gap:12px}
 .search-row input{flex:1;min-width:0;height:46px;border:1px solid #e7ebf2;border-radius:11px;background:#fff;padding:0 15px;color:#3a465c;font-size:12px}
 .search-row input::placeholder{color:#a6aebd}
-.search-row input:focus{border-color:#f0a9b4;outline:0;box-shadow:0 0 0 3px #fdeef1}
-.find-button{display:inline-flex;flex:none;align-items:center;gap:8px;height:46px;border:0;border-radius:11px;background:linear-gradient(180deg,#f5293f,#dc1a30);padding:0 24px;color:#fff;font-size:12.5px;font-weight:700;box-shadow:0 8px 18px #e01f373d;transition:.15s}
+.search-row input:focus{border-color:#3b82f6;outline:0;box-shadow:0 0 0 3px rgba(59,130,246,.12)}
+.find-button{display:inline-flex;flex:none;align-items:center;gap:8px;height:46px;border:0;border-radius:11px;background:linear-gradient(180deg,#3b82f6,#2563eb);padding:0 24px;color:#fff;font-size:12.5px;font-weight:700;box-shadow:0 8px 18px rgba(37,99,235,.24);transition:.15s}
 .find-button:hover{filter:brightness(.95)}
 .search-tags{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:13px 7px 3px}
 .search-tags>span{color:#98a1b1;font-size:11.5px}
@@ -99,10 +99,13 @@ body:has(.search-page) .page-content--flush{isolation:isolate;overflow:hidden;pa
 .ptile-name{color:#3c495e;font-size:10.5px;font-weight:600;white-space:nowrap}
 .adv-link{display:inline-flex;align-self:flex-end;align-items:center;gap:7px;margin-top:11px;border:0;background:none;padding:0;color:#2c67e0;font-size:11.5px;font-weight:600}
 .adv-link:hover{text-decoration:underline}
-.pl-badge{display:inline-grid;place-items:center;border-radius:22%;color:#fff;font-weight:800;letter-spacing:.3px}
+.pl-badge{display:flex;align-items:center;justify-content:center;max-width:100%;max-height:100%;border-radius:22%;color:#fff;font-weight:800;letter-spacing:.3px;line-height:1}
 .pl-vk{overflow:hidden;background:transparent}.pl-vk img{display:block;width:100%;height:100%;object-fit:contain}
 .pl-ok{background:#f7931e;box-shadow:inset 0 0 0 1px #ffb25c}
 .pl-max{background:linear-gradient(135deg,#28c5f5 0%,#2768f5 38%,#7131ee 73%,#bb54df 100%)}
+.pl-logo{display:inline-block;flex:none;object-fit:cover;border-radius:24%;box-shadow:0 2px 6px rgba(10,25,47,.20)}
+.platform-filter .pl-logo{border-radius:7px;box-shadow:0 2px 5px rgba(19,38,60,.14)}
+.pl-logo-chip{border-radius:4px;box-shadow:none}
 .switch-blue.switch-on{background:#2e7bf6}
 .switch-lg{width:42px;height:23px;padding:2px}
 .switch-lg i{width:19px;height:19px}
@@ -188,3 +191,68 @@ body:has(.search-page) .page-content--flush{min-height:calc(100vh - 72px)}
 body:has(.sources-shell) .page-content,body:has(.saved-shell) .page-content,body:has(.settings-shell) .page-content{min-height:calc(100vh - 72px)}
 @media(max-width:760px){body:has(.search-page) .page-content--flush{min-height:calc(100vh - 64px)}.hero-pane{inset:64px 0 0 0}body:has(.sources-shell) .page-content,body:has(.saved-shell) .page-content,body:has(.settings-shell) .page-content{min-height:calc(100vh - 64px)}}
 
+.platform-switch-container {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #718099;
+  font-size: 11.5px;
+  font-weight: 600;
+  flex-wrap: wrap;
+}
+
+.platform-switch {
+  display: flex;
+  background: rgba(13, 27, 49, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 30px;
+  padding: 4px;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.platform-switch-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: 26px;
+  background: transparent;
+  color: rgba(255, 255, 255, 0.5);
+  font-size: 11px;
+  font-weight: 700;
+  transition: 0.2s;
+}
+
+.platform-switch-item:hover {
+  background: rgba(255, 255, 255, 0.05);
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.platform-switch-item.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.platform-switch-item .pl-logo {
+  box-shadow: none;
+  filter: grayscale(1) opacity(0.5);
+  transition: 0.2s;
+}
+
+.platform-switch-item.active .pl-logo {
+  filter: none;
+}
+
+/* Бейджи новых площадок: Telegram, сайты редакций, Дзен. */
+.pl-badge.pl-tg{background:#2aabee}
+.pl-badge.pl-site{background:#4d7cc7}
+.pl-badge.pl-dzen{background:#4a4a4f}
+.repository-platform.tg{background:#e5f4fd;color:#1c88c7}
+.repository-platform.site{background:#eef1f6;color:#4d5f79}
+.repository-platform.dzen{background:#ececee;color:#3a3a3e}
+.publication-platform.tg{background:#2aabee}
+.publication-platform.site{background:#4d7cc7}
+.publication-platform.dzen{background:#4a4a4f}

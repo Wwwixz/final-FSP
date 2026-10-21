@@ -30,7 +30,7 @@ function loadSettings(): Settings {
   } catch { return defaultSettings }
 }
 const typeNames: Record<SearchType, string> = { TOPIC: 'Тема', EVENT: 'Событие', PERSON: 'Человек', NEWS_TEXT: 'Текст новости' }
-const platformNames: Record<Platform, string> = { VK: 'ВКонтакте', OK: 'Одноклассники', MAX: 'MAX' }
+const platformNames: Record<Platform, string> = { VK: 'ВКонтакте', OK: 'Одноклассники', MAX: 'MAX', TG: 'Telegram', SITE: 'Сайт', DZEN: 'Дзен' }
 const coolKey = 'krasnopars-extension-export-next'
 function countLabel(value: number, one: string, few: string, many: string) {
   const lastTwo = Math.abs(value) % 100

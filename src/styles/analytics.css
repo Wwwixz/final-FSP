@@ -1,4 +1,4 @@
-﻿/* Results and analytics imported from the repository. */
+/* Results and analytics imported from the repository. */
 .app-shell:has(.results-page) .main-area{background-color:#8fa5b5;background-position:center,center;background-size:100% 100%,cover;background-repeat:no-repeat;background-attachment:scroll,fixed}
 .app-shell[data-city-background='day']:has(.results-page) .main-area{background-image:linear-gradient(90deg,rgba(225,236,244,.38) 0%,rgba(225,236,244,.18) 48%,rgba(225,236,244,.02) 100%),url('../assets/krasnoyarsk-day.png')}
 .app-shell[data-city-background='evening']:has(.results-page) .main-area{background-image:linear-gradient(90deg,rgba(12,27,49,.32) 0%,rgba(12,27,49,.12) 48%,rgba(12,27,49,.04) 100%),url('../assets/krasnoyarsk-night.jpg')}
@@ -11,11 +11,43 @@
 
 /* Repository version of Sources. */
 .repository-sources{max-width:1180px;margin:0 auto}.repository-source-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:18px;margin-bottom:28px}.repository-kicker{display:flex;align-items:center;gap:7px;margin-bottom:7px;color:#8b978d;font-size:10px;font-weight:700;letter-spacing:1.7px;text-transform:uppercase}.repository-source-heading h1{margin:0;color:#202943;font:700 31px Manrope,sans-serif;letter-spacing:-1px}.repository-source-heading p{margin:6px 0 0;color:#8a948d;font-size:12px}.repository-source-heading>button{display:flex;align-items:center;gap:8px;border:0;border-radius:8px;background:#204b39;padding:10px 16px;color:white;font-size:11px;font-weight:600}.repository-source-list{overflow:hidden}.repository-source-list-head{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #edf0ed;padding:16px 24px}.repository-source-list-head h2{margin:0;font:700 14px Manrope,sans-serif}.repository-source-list-head p{margin:4px 0 0;color:#98a199;font-size:10px}.repository-source-list-head>button{border:0;background:none;color:#57745e;font-size:10px;font-weight:600}.repository-source-row{display:flex;flex-wrap:wrap;align-items:center;gap:12px;border-bottom:1px solid #f0f2ef;padding:15px 24px}.repository-check{display:grid;width:18px;height:18px;flex:none;place-items:center;border:1px solid #d7ded7;border-radius:4px;background:white;color:transparent}.repository-check.checked{border-color:#527b5b;background:#527b5b;color:white}.repository-source-avatar{display:grid;width:36px;height:36px;flex:none;place-items:center;border:0;border-radius:11px;font-size:12px;font-weight:700}.repository-source-copy{min-width:145px;flex:1}.repository-source-copy>button{display:block;border:0;background:none;padding:0;color:#455148;font-size:11px;font-weight:600}.repository-source-copy a{display:inline-flex;align-items:center;gap:4px;margin-top:4px;color:#98a39a;font-size:9px;text-decoration:none}.repository-platform{border-radius:4px;padding:5px 8px;font-size:8px;font-weight:700}.repository-platform.vk{background:#eaf0ff;color:#4266b0}.repository-platform.ok{background:#fff1e3;color:#bd7026}.repository-platform.max{background:#f0eaff;color:#7254bd}.repository-followers{width:70px;color:#7d8980;text-align:right;font-size:10px}.repository-status{display:flex;align-items:center;gap:6px;color:#699371;font-size:9px;font-weight:500}.repository-status i{width:6px;height:6px;border-radius:50%;background:#79a984}.repository-status.offline{color:#959d97}.repository-status.offline i{background:#aab0ac}.repository-delete{border:0;border-radius:6px;background:none;padding:7px;color:#a8b0aa;font-size:18px}.repository-delete:hover{background:#fff0ee;color:#bd6555}.repository-source-note{background:#fafbf9;padding:12px 24px;color:#929c94;font-size:10px}
+.repository-source-avatar--logo{display:grid;place-items:center;border:1px solid #e0e6dd;background:#fff;padding:2px;cursor:pointer;transition:border-color .15s}
+.repository-source-avatar--logo:hover{border-color:#b9c6ba}
 @media(max-width:850px){.analytics-grid{grid-template-columns:1fr}.analytics-stats{grid-template-columns:1fr 1fr}}
+
+/* API-backed analytics */
+.analytics-controls{display:flex;align-items:flex-end;justify-content:flex-end;gap:8px;flex-wrap:wrap}
+.analytics-search-control{display:grid;gap:4px;color:#6f7b90;font-size:8px;font-weight:700}
+.analytics-search-control select{max-width:290px;min-width:190px;height:31px;border:1px solid #e3e8ef;border-radius:7px;background:#fff;padding:0 9px;color:#4f5d75;font-size:9px}
+.analytics-date input{min-width:105px;border:0;background:transparent;color:#53617b;font-size:8px;outline:none}
+.analytics-scope-note,.analytics-summary-note{margin:0 0 10px;color:#7c899e;font-size:8px;line-height:1.55}
+.analytics-filter-row{display:flex;align-items:center;flex-wrap:wrap;gap:6px;margin-bottom:10px;color:#77849a;font-size:8px}
+.analytics-filter-row>span{margin-right:3px;font-weight:700}
+.analytics-filter-row button{min-height:26px;border:1px solid #e3e8ef;border-radius:6px;background:#fff;padding:0 9px;color:#68758b;font-size:8px}
+.analytics-filter-row button.selected{border-color:#f1c3ca;background:#fff0f2;color:#d82743;font-weight:700}
+.analytics-filter-row .analytics-refresh{display:inline-flex;align-items:center;gap:4px;margin-left:auto}
+.analytics-empty-state,.analytics-chart-empty{display:grid;min-height:140px;place-items:center;border:1px dashed #dbe1ea;border-radius:10px;background:#ffffffe8;padding:20px;color:#7c899e;text-align:center;font-size:10px}
+.analytics-chart-empty{min-height:180px;border:0;background:transparent}
+.chart-legend span{display:inline-flex;align-items:center;gap:4px;color:#7d899d;font-size:7px}
+.chart-legend span i{width:7px;height:7px;border-radius:50%}
+.analytics-platform-list{display:grid;gap:8px;padding:4px 13px 12px}
+.analytics-platform-list>div,.analytics-source-list>div{display:flex;align-items:center;justify-content:space-between;gap:8px;color:#718099;font-size:8px}
+.analytics-platform-list>div>span{display:flex;align-items:center;gap:7px}
+.analytics-platform-list b,.analytics-source-list b{color:#344159;font-size:8px;text-align:right}
+.analytics-source-list{display:grid;gap:8px;padding:0 13px 12px}
+.analytics-source-list p{margin:0;color:#8995a8;font-size:8px}
+.analytics-summary-note{margin:10px 0 0;border-left:2px solid #e7a0ab;padding-left:8px}
+.analytics-page .api-alert{margin:0 0 10px}
+html[data-theme='dark'] .analytics-search-control select,html[data-theme='dark'] .analytics-filter-row button{border-color:#3d6170;background:#123344e8;color:#dce6f4}
+html[data-theme='dark'] .analytics-scope-note,html[data-theme='dark'] .analytics-summary-note,html[data-theme='dark'] .analytics-filter-row,html[data-theme='dark'] .analytics-platform-list>div,html[data-theme='dark'] .analytics-source-list>div,html[data-theme='dark'] .analytics-source-list p{color:#9aabc0}
+html[data-theme='dark'] .analytics-platform-list b,html[data-theme='dark'] .analytics-source-list b{color:#e5edf7}
+html[data-theme='dark'] .analytics-empty-state{border-color:#49536f;background:#252b46e8;color:#bdc9d9}
 @media(max-width:650px){.design-page-heading,.repository-source-heading{align-items:flex-start;flex-direction:column}.heading-actions{width:100%}.heading-actions button{flex:1}.results-summary-bar{flex-wrap:wrap}.summary-edit{margin-left:0}.result-row{grid-template-columns:12px 82px minmax(0,1fr);gap:7px}.result-photo{width:82px;height:63px}.result-topic{display:none}.repository-source-heading>button{width:100%;justify-content:center}.repository-followers{display:none}}
 @media(max-width:1100px){.design-page.results-page{width:72%}.results-search-filters{grid-template-columns:1fr 1fr}.results-search-filters fieldset{grid-column:1/-1}}
 @media(max-width:820px){.design-page.results-page{width:100%}}
 @media(max-width:820px){.app-shell:has(.results-page) .main-area{background-attachment:scroll}}
 @media(max-width:600px){.results-search-panel{padding:16px}.results-search-row{align-items:stretch;flex-direction:column}.results-find{height:42px}.results-search-filters{grid-template-columns:1fr}.results-search-filters fieldset{grid-column:auto}.results-platform-summary{margin-left:0}.results-empty-state{min-height:200px;padding:24px}}
 @media(max-width:600px){.app-shell:has(.results-page) .page-content{padding:22px 12px 35px}}
+.publication-thumb.no-image{background:linear-gradient(135deg,#eef1f6,#dfe5ee)}
+.publication-thumb-empty{position:absolute;inset:0;display:grid;place-items:center;color:#98a4b8}
 

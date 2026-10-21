@@ -1,4 +1,4 @@
-export type ApiPlatform = 'VK' | 'OK' | 'MAX'
+export type ApiPlatform = 'VK' | 'OK' | 'MAX' | 'TG' | 'SITE' | 'DZEN'
 export type SearchType = 'TOPIC' | 'EVENT' | 'PERSON' | 'NEWS_TEXT'
 export type SearchMode = 'BY_SOURCES' | 'ALL_PLATFORMS'
 export type SearchStatus = 'RUNNING' | 'COMPLETED' | 'COMPLETED_PARTIAL' | 'FAILED'
@@ -8,6 +8,7 @@ export type ApiSource = {
   name: string
   platform: ApiPlatform
   url: string
+  logoUrl: string | null
   description: string | null
   active: boolean
   createdAt: string
@@ -75,6 +76,7 @@ export type ApiPublication = {
   url: string
   title: string
   excerpt: string
+  imageUrl: string | null
   publishedAt: string | null
   hasDate: boolean
   relevance: number
@@ -98,9 +100,14 @@ export type PublicationPage = {
 export type PlatformInfo = { code: ApiPlatform; title: string; realApiSupported: boolean }
 export type AiStatus = { enabled: boolean; configured: boolean; connected: boolean; model: string; scope: string; message: string }
 export type AiRelevance = { checked: boolean; relevance: number | null; comment: string | null; model: string; message: string }
+export type AuthResponse = { token: string; expiresAt: string; user: { id: number; name: string; email: string } }
+export type SavedQuery = { id: number; name: string; query: string; period: string | null; region: string | null; favorite: boolean; createdAt: string }
+export type SavedQueryInput = { name: string; query: string; period?: string; region?: string; favorite?: boolean }
 
 const configuredBaseUrl = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_BASE_URL
-export const API_BASE_URL = (configuredBaseUrl || 'http://109.196.167.225:8080').replace(/\/$/, '')
+const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+const isBrowserExtension = typeof window !== 'undefined' && ['chrome-extension:', 'moz-extension:'].includes(window.location.protocol)
+export const API_BASE_URL = (configuredBaseUrl || (isLocal || isBrowserExtension ? 'http://109.196.167.225:8080' : 'https://krasnoyarsk.calonders.ru')).replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number
@@ -112,12 +119,18 @@ export class ApiError extends Error {
   }
 }
 
+function getToken() {
+  return typeof window !== 'undefined' ? window.localStorage.getItem('krasnopars-token') : null
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const token = getToken()
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
       Accept: 'application/json',
       ...(init?.body ? { 'Content-Type': 'application/json; charset=utf-8' } : {}),
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       ...init?.headers,
     },
   })
@@ -125,6 +138,11 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const rawBody = await response.text()
 
   if (!response.ok) {
+    // Истёкший или отозванный токен: сбрасываем сессию и просим войти заново.
+    if (response.status === 401 && token && !path.startsWith('/api/auth/')) {
+      window.localStorage.removeItem('krasnopars-token')
+      window.dispatchEvent(new Event('krasnopars-unauthorized'))
+    }
     let message = `Ошибка API (${response.status})`
     try {
       const body = JSON.parse(rawBody) as { message?: string; error?: string; detail?: string }
@@ -147,6 +165,13 @@ export const api = {
   checkRelevance: (input: { query: string; text: string; additionalInfo?: string; searchType?: SearchType }) =>
     request<AiRelevance>('/api/ai/relevance', { method: 'POST', body: JSON.stringify(input) }),
 
+  auth: {
+    login: (input: any) => request<AuthResponse>('/api/auth/login', { method: 'POST', body: JSON.stringify(input) }),
+    register: (input: any) => request<AuthResponse>('/api/auth/register', { method: 'POST', body: JSON.stringify(input) }),
+    me: () => request<AuthResponse['user']>('/api/auth/me'),
+    logout: () => request<void>('/api/auth/logout', { method: 'POST' }),
+  },
+
   sources: (filters?: { platform?: ApiPlatform; active?: boolean; q?: string }) => {
     const params = new URLSearchParams()
     if (filters?.platform) params.set('platform', filters.platform)
@@ -167,6 +192,11 @@ export const api = {
   deleteSearch: (id: number) => request<void>(`/api/search/${id}`, { method: 'DELETE' }),
   publications: (id: number, page = 0, size = 100, sort: 'relevance' | 'date' | 'found' = 'relevance') =>
     request<PublicationPage>(`/api/search/${id}/publications?page=${page}&size=${size}&sort=${sort}`),
+
+  savedQueries: () => request<SavedQuery[]>('/api/saved-queries'),
+  saveQuery: (input: SavedQueryInput) => request<SavedQuery>('/api/saved-queries', { method: 'POST', body: JSON.stringify(input) }),
+  deleteSavedQuery: (id: number) => request<void>(`/api/saved-queries/${id}`, { method: 'DELETE' }),
+  toggleFavoriteQuery: (id: number, favorite: boolean) => request<SavedQuery>(`/api/saved-queries/${id}/favorite?favorite=${favorite}`, { method: 'PUT' }),
 }
 
 export async function waitForSearch(id: number, signal?: AbortSignal): Promise<ApiSearch> {
@@ -176,20 +206,43 @@ export async function waitForSearch(id: number, signal?: AbortSignal): Promise<A
     const search = await api.search(id)
     if (search.status !== 'RUNNING') return search
     await new Promise<void>((resolve, reject) => {
-      const timer = window.setTimeout(resolve, 1_000)
-      signal?.addEventListener('abort', () => {
+      const finish = () => {
+        signal?.removeEventListener('abort', abort)
+        resolve()
+      }
+      const timer = window.setTimeout(finish, 1_000)
+      const abort = () => {
         window.clearTimeout(timer)
+        signal?.removeEventListener('abort', abort)
         reject(new DOMException('Поиск отменён', 'AbortError'))
-      }, { once: true })
+      }
+      if (signal?.aborted) abort()
+      else signal?.addEventListener('abort', abort, { once: true })
     })
   }
   throw new Error('Поиск выполняется дольше 90 секунд. Попробуйте открыть его позже.')
 }
 
+export async function allSearchPublications(id: number, size = 100) {
+  const first = await api.publications(id, 0, size)
+  const pages = Number.isSafeInteger(first.totalPages) && first.totalPages > 0 ? first.totalPages : 1
+  if (pages === 1) return first.content
+  const remaining = await Promise.all(Array.from({ length: pages - 1 }, (_, index) => api.publications(id, index + 1, size)))
+  return [...first.content, ...remaining.flatMap(page => page.content)]
+}
+
 export async function downloadSearchExport(id: number, format: 'xlsx' | 'docx' = 'xlsx') {
-  const response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`)
-  if (!response.ok) throw new ApiError(`Не удалось выгрузить отчёт (${response.status})`, response.status)
+  const token = getToken()
+  const response = await fetch(`${API_BASE_URL}/api/search/${id}/export?format=${format}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) {
+    let message = `Не удалось выгрузить отчёт (${response.status})`
+    try { const body = await response.json() as { message?: string }; if (body?.message) message = body.message } catch { /* не-json ответ */ }
+    throw new ApiError(message, response.status)
+  }
   const blob = await response.blob()
+  if (!blob || blob.size === 0) throw new ApiError('Выгрузился пустой файл — попробуйте повторить поиск и выгрузку.', response.status)
   const url = URL.createObjectURL(blob)
   const anchor = document.createElement('a')
   anchor.href = url

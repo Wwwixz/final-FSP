@@ -7,66 +7,76 @@
 
 /* Compact status toast shown after a completed search. */
 .notice{
+  --notice-accent:#2878d4;
+  --notice-accent-strong:#155faa;
+  --notice-accent-soft:rgba(40,120,212,.12);
   position:fixed;
   z-index:30;
   top:calc(84px + env(safe-area-inset-top,0px));
   right:max(28px,env(safe-area-inset-right,0px));
   display:grid;
-  grid-template-columns:40px minmax(0,1fr) 32px;
+  grid-template-columns:44px minmax(0,1fr) 34px;
   align-items:center;
   gap:12px;
   width:min(420px,calc(100vw - 32px));
   margin:0;
-  border:1px solid rgba(216,39,67,.26);
-  border-radius:14px;
-  background:rgba(255,255,255,.96);
-  padding:12px;
+  border:1px solid rgba(123,159,199,.34);
+  border-radius:18px;
+  background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(246,250,255,.94));
+  padding:13px;
   color:#25334f;
   overflow:hidden;
-  box-shadow:0 18px 48px rgba(17,42,67,.18),0 4px 12px rgba(17,42,67,.08);
+  box-shadow:0 24px 64px rgba(17,42,67,.2),0 5px 16px rgba(17,42,67,.09),inset 0 1px 0 rgba(255,255,255,.9);
   -webkit-backdrop-filter:blur(18px);
   backdrop-filter:blur(18px);
-  animation:notice-enter .24s cubic-bezier(.2,.8,.2,1) both;
+  isolation:isolate;
+  animation:notice-enter .34s cubic-bezier(.16,1,.3,1) both;
 }
+.notice:before{position:absolute;z-index:-1;top:-42px;left:-26px;width:115px;height:115px;border-radius:50%;background:var(--notice-accent-soft);filter:blur(18px);content:'';pointer-events:none}
+.notice-partial{--notice-accent:#e29a2d;--notice-accent-strong:#b56a0a;--notice-accent-soft:rgba(226,154,45,.15);border-color:rgba(226,154,45,.34);background:linear-gradient(145deg,rgba(255,255,255,.98),rgba(255,250,241,.95))}
 .notice-icon{
   display:grid;
-  width:40px;
-  height:40px;
+  width:44px;
+  height:44px;
   place-items:center;
-  border-radius:12px;
-  background:linear-gradient(145deg,#f2375a,#d11d3b);
+  border:1px solid rgba(255,255,255,.58);
+  border-radius:14px;
+  background:linear-gradient(145deg,var(--notice-accent),var(--notice-accent-strong));
   color:#fff;
-  box-shadow:0 7px 16px rgba(229,29,59,.26);
+  box-shadow:0 8px 20px color-mix(in srgb,var(--notice-accent) 30%,transparent),inset 0 1px 0 rgba(255,255,255,.3);
 }
-.notice-content{display:grid;min-width:0;gap:3px}
+.notice-content{display:grid;min-width:0;gap:5px}
+.notice-heading{display:flex;min-width:0;align-items:center;gap:8px}
 .notice-content strong{color:#18243d;font:700 12px 'Manrope',sans-serif}
-.notice-content>span{color:#78849a;font-size:10px;line-height:1.45}
+.notice-heading i{border:1px solid color-mix(in srgb,var(--notice-accent) 24%,transparent);border-radius:999px;background:var(--notice-accent-soft);padding:3px 7px;color:var(--notice-accent-strong);font-size:8px;font-style:normal;font-weight:800;letter-spacing:.035em;text-transform:uppercase;white-space:nowrap}
+.notice-content>span:last-child{color:#6e7e93;font-size:10px;line-height:1.45}
 .notice .notice-close{
   display:grid;
-  width:32px;
-  height:32px;
+  width:34px;
+  height:34px;
   margin:0;
   place-items:center;
   border:0;
-  border-radius:9px;
-  background:transparent;
-  color:#81938b;
+  border:1px solid transparent;
+  border-radius:11px;
+  background:rgba(121,143,169,.07);
+  color:#7d8ca0;
   transition:background .16s,color .16s;
 }
-.notice .notice-close:hover{background:#fff0f2;color:#d82743}
-.notice .notice-close:focus-visible{outline:3px solid rgba(229,29,59,.25);outline-offset:1px}
+.notice .notice-close:hover{border-color:color-mix(in srgb,var(--notice-accent) 20%,transparent);background:var(--notice-accent-soft);color:var(--notice-accent-strong)}
+.notice .notice-close:focus-visible{outline:3px solid var(--notice-accent-soft);outline-offset:1px}
 .notice-progress{
   position:absolute;
   right:0;
   bottom:0;
   left:0;
-  height:3px;
-  border-radius:0 0 14px 14px;
-  background:linear-gradient(90deg,#d11d3b,#f2375a);
+  height:4px;
+  border-radius:0 0 18px 18px;
+  background:linear-gradient(90deg,var(--notice-accent-strong),var(--notice-accent));
   transform-origin:left;
-  animation:notice-progress 5s linear forwards;
+  animation:notice-progress 7s linear forwards;
 }
-@keyframes notice-enter{from{opacity:0;transform:translateY(-10px) scale(.98)}to{opacity:1;transform:none}}
+@keyframes notice-enter{from{opacity:0;transform:translateY(-14px) scale(.96)}to{opacity:1;transform:none}}
 @keyframes notice-progress{from{transform:scaleX(1)}to{transform:scaleX(0)}}
 @media(max-width:1100px){
   .notice{right:max(20px,env(safe-area-inset-right,0px));width:min(400px,calc(100vw - 40px))}

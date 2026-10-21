@@ -1,19 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, ReactNode } from 'react'
-import { api, downloadSearchExport, waitForSearch } from './api'
-import type { ApiPublication, ApiSearch, ApiSource } from './api'
+import { api, downloadSearchExport, waitForSearch, ApiError } from './api'
+import type { ApiPublication, ApiSearch, ApiSource, AuthResponse } from './api'
 import {
-  ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight, BarChart3,
+  ArrowDownRight, ArrowLeft, ArrowRight, ArrowUpRight,
   Bookmark, CalendarDays, Check, ChevronDown, ChevronLeft, ChevronRight, ChevronUp, CircleAlert,
-  CircleHelp, Download, ExternalLink, Eye, EyeOff, Heart, Lock, Mail, MapPin,
+  CircleHelp, Download, ExternalLink, Eye, EyeOff, Heart, ImageOff, Link2, Lock, Mail, MapPin,
   Moon, MoreHorizontal, Newspaper, Plus, Search, Settings, Share2, Star, Sun, TrendingUp, User, Users, X,
 } from 'lucide-react'
+import platformVkIcon from './assets/platform-vk.png'
+import platformOkIcon from './assets/platform-ok.png'
+import platformMaxIcon from './assets/platform-max.png'
+import platformTgIcon from './assets/platform-tg.svg'
+import platformDzenIcon from './assets/platform-dzen.svg'
 
 type Page = 'login' | 'register' | 'results' | 'publication' | 'sources' | 'saved' | 'analytics' | 'settings'
-type Platform = 'VK' | 'OK' | 'MAX'
-type Source = { id: number; name: string; platform: Platform; url: string; followers: string; region: string; active: boolean; color: string }
-type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean }
-type Publication = { id: number; source: string; platform: Platform; date: string; title: string; excerpt: string; url: string; kind: string; color: string; image: string; likes: number; reposts: number; views: number; aiRelevance: number | null; aiComment: string | null }
+type Platform = 'VK' | 'OK' | 'MAX' | 'TG' | 'SITE' | 'DZEN'
+type CustomSearchLink = { id: string; url: string }
+type Source = { id: number; name: string; platform: Platform; url: string; logoUrl: string | null; followers: string; region: string; active: boolean; color: string }
+type SavedQuery = { id: number; name: string; query: string; period: string; region: string; favorite: boolean; createdAt?: string }
+type Publication = { id: number; source: string; platform: Platform; date: string; publishedAtMs: number | null; title: string; excerpt: string; url: string; kind: string; color: string; image: string | null; likes: number; reposts: number; views: number; aiRelevance: number | null; aiComment: string | null }
 type CityBackground = 'day' | 'evening'
 type ThemeMode = 'system' | 'light' | 'dark'
 
@@ -49,33 +55,49 @@ const monthAgoInputValue = () => {
   date.setDate(date.getDate() - 30)
   return formatDateInput(date)
 }
+const customSearchLinksStorageKey = 'krasnopars-custom-search-links'
+const readCustomSearchLinks = (): CustomSearchLink[] => {
+  if (typeof window === 'undefined') return []
+  try {
+    const stored: unknown = JSON.parse(window.localStorage.getItem(customSearchLinksStorageKey) || '[]')
+    if (!Array.isArray(stored)) return []
+    return stored.flatMap((item: unknown) => {
+      if (!item || typeof item !== 'object') return []
+      const link = item as Partial<CustomSearchLink>
+      return typeof link.id === 'string' && typeof link.url === 'string' ? [{ id: link.id, url: link.url }] : []
+    })
+  } catch {
+    return []
+  }
+}
 
 const initialSources: Source[] = [
-  { id: 1, name: 'Наш Красноярский край', platform: 'VK', url: 'vk.com/krskstate', followers: '245K', region: 'Красноярский край', active: true, color: '#284b83' },
-  { id: 2, name: 'Спорт_Красноярск', platform: 'VK', url: 'vk.com/sportkrsk', followers: '128K', region: 'Красноярский край', active: true, color: '#26364e' },
-  { id: 3, name: 'Новости Красноярска', platform: 'OK', url: 'ok.ru/news.krsk', followers: '86K', region: 'Красноярский край', active: true, color: '#d5222b' },
-  { id: 4, name: 'Культура Красноярья', platform: 'OK', url: 'ok.ru/culturekrsk', followers: '42K', region: 'Красноярский край', active: true, color: '#99820f' },
-  { id: 5, name: 'Красноярск. Главное', platform: 'MAX', url: 'max.ru/krasnoyarsk', followers: '38K', region: 'Красноярский край', active: true, color: '#5d4a37' },
-  { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
+  { id: 1, name: 'Наш Красноярский край', platform: 'VK', url: 'vk.com/krskstate', logoUrl: null, followers: '245K', region: 'Красноярский край', active: true, color: '#284b83' },
+  { id: 2, name: 'Спорт_Красноярск', platform: 'VK', url: 'vk.com/sportkrsk', logoUrl: null, followers: '128K', region: 'Красноярский край', active: true, color: '#26364e' },
+  { id: 3, name: 'Новости Красноярска', platform: 'OK', url: 'ok.ru/news.krsk', logoUrl: null, followers: '86K', region: 'Красноярский край', active: true, color: '#d5222b' },
+  { id: 4, name: 'Культура Красноярья', platform: 'OK', url: 'ok.ru/culturekrsk', logoUrl: null, followers: '42K', region: 'Красноярский край', active: true, color: '#99820f' },
+  { id: 5, name: 'Красноярск. Главное', platform: 'MAX', url: 'max.ru/krasnoyarsk', logoUrl: null, followers: '38K', region: 'Красноярский край', active: true, color: '#5d4a37' },
+  { id: 6, name: 'ЧП Красноярск', platform: 'VK', url: 'vk.com/chp_krsk', logoUrl: null, followers: '512K', region: 'Красноярский край', active: true, color: '#312c6f' },
 ]
-const initialSaved: SavedQuery[] = [
-  { id: 1, name: 'Ледовый дворец', query: 'открытие ледового дворца Красноярск', period: '01.03.2026 — 31.03.2026', region: 'Красноярский край', favorite: true },
-  { id: 2, name: 'Наводнение 2026', query: 'наводнение Красноярский край', period: '01.04.2026 — 30.04.2026', region: 'Красноярский край', favorite: true },
-  { id: 3, name: 'Губернатор края', query: 'губернатор Красноярского края', period: '01.01.2026 — 31.03.2026', region: 'Красноярский край', favorite: true },
-  { id: 4, name: 'Развитие спорта', query: 'развитие спорта Красноярск', period: '01.01.2026 — 31.12.2026', region: 'Красноярский край', favorite: true },
-  { id: 5, name: 'Строительство', query: 'строительство Красноярск', period: '01.01.2026 — 31.12.2026', region: 'Красноярский край', favorite: true },
-]
-const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX' }
+const platformLabel: Record<Platform, string> = { VK: 'VK', OK: 'Одноклассники', MAX: 'MAX', TG: 'Telegram', SITE: 'Сайты', DZEN: 'Дзен' }
+const sourceUrlPlaceholder: Record<Platform, string> = {
+  VK: 'vk.com/community',
+  OK: 'ok.ru/group/123456',
+  MAX: 'max.ru/channel',
+  TG: 't.me/channel',
+  SITE: 'https://example.com/',
+  DZEN: 'dzen.ru/channel',
+}
+const platformIcon: Partial<Record<Platform, string>> = { VK: platformVkIcon, OK: platformOkIcon, MAX: platformMaxIcon, TG: platformTgIcon, DZEN: platformDzenIcon }
 const exampleTopics = ['ледовый дворец Красноярск', 'губернатор края', 'наводнение 2026', 'развитие спорта']
 
-const platformColor: Record<Platform, string> = { VK: '#5278d9', OK: '#e98a35', MAX: '#7358ce' }
-const publicationImages = ['/images/arena-exterior.jpg', '/images/arena-interior.jpg', '/images/hockey-training.jpg', '/images/arena-evening.jpg', '/images/arena-ceremony.jpg']
-
+const platformColor: Record<Platform, string> = { VK: '#5278d9', OK: '#e98a35', MAX: '#7358ce', TG: '#2aabee', SITE: '#4d7cc7', DZEN: '#4a4a4f' }
 const mapSource = (source: ApiSource): Source => ({
   id: source.id,
   name: source.name,
   platform: source.platform,
   url: source.url,
+  logoUrl: source.logoUrl,
   followers: '—',
   region: 'Красноярский край',
   active: source.active,
@@ -89,12 +111,13 @@ const mapPublication = (publication: ApiPublication): Publication => ({
   date: publication.hasDate && publication.publishedAt
     ? new Intl.DateTimeFormat('ru-RU', { dateStyle: 'medium', timeStyle: 'short' }).format(new Date(publication.publishedAt))
     : 'Дата недоступна',
+  publishedAtMs: publication.hasDate && publication.publishedAt ? new Date(publication.publishedAt).getTime() : null,
   title: publication.title || 'Публикация без заголовка',
   excerpt: publication.excerpt || 'Текст публикации отсутствует.',
   url: publication.url,
   kind: (publication.aiRelevance ?? publication.relevance) >= 0.65 ? 'По теме' : 'Связано',
   color: platformColor[publication.platform],
-  image: publicationImages[publication.id % publicationImages.length],
+  image: publication.imageUrl ?? null,
   likes: publication.likes ?? 0,
   reposts: publication.reposts ?? 0,
   views: publication.views ?? 0,
@@ -102,26 +125,44 @@ const mapPublication = (publication: ApiPublication): Publication => ({
   aiComment: publication.aiComment,
 })
 
+const loadSearchPublications = async (searchId: number): Promise<{ items: Publication[]; total: number }> => {
+  const firstPage = await api.publications(searchId)
+  const items = [...firstPage.content]
+  for (let page = 1; page < firstPage.totalPages; page += 1) {
+    const nextPage = await api.publications(searchId, page)
+    items.push(...nextPage.content)
+  }
+  return { items: items.map(mapPublication), total: firstPage.totalElements }
+}
+
 const getErrorMessage = (error: unknown) => error instanceof Error ? error.message : 'Не удалось выполнить запрос к API.'
-const formatApiPeriod = (search: ApiSearch) => `${search.dateFrom ?? '—'} — ${search.dateTo ?? '—'}`
+
+const hasStoredToken = () => typeof window !== 'undefined' && Boolean(window.localStorage.getItem('krasnopars-token'))
+const guestSessionKey = 'krasnopars-guest'
+const hasGuestSession = () => typeof window !== 'undefined' && window.localStorage.getItem(guestSessionKey) === 'true'
 
 function App() {
-  const [page, setPage] = useState<Page>('results')
+  const [isAuthChecking, setIsAuthChecking] = useState(hasStoredToken())
+  const [page, setPage] = useState<Page>(() => (hasStoredToken() || hasGuestSession() ? 'results' : 'login'))
+  const [user, setUser] = useState<AuthResponse['user'] | null>(null)
+  const [guestMode, setGuestMode] = useState(() => !hasStoredToken() && hasGuestSession())
   const [query, setQuery] = useState('')
   const [hasSearched, setHasSearched] = useState(false)
-  const [periodStart, setPeriodStart] = useState(monthAgoInputValue)
+  const [periodStart, setPeriodStart] = useState('2001-01-01')
   const [periodEnd, setPeriodEnd] = useState(todayInputValue)
   const [region, setRegion] = useState('Красноярский край')
   const [regions, setRegions] = useState(['Красноярский край', 'Красноярск', 'Ачинск', 'Норильск'])
   const [platforms, setPlatforms] = useState<Platform[]>(['VK', 'OK', 'MAX'])
+  const [searchMode, setSearchMode] = useState<'BY_SOURCES' | 'ALL_PLATFORMS'>('BY_SOURCES')
   const [sources, setSources] = useState<Source[]>(initialSources)
+  const [deselectedSourceIds, setDeselectedSourceIds] = useState<number[]>([])
   const [results, setResults] = useState<Publication[]>([])
   const [searchId, setSearchId] = useState<number | null>(null)
   const [, setSearchStatus] = useState<ApiSearch['status'] | null>(null)
   const [isSearching, setIsSearching] = useState(false)
   const searchRunRef = useRef(0)
   const [apiError, setApiError] = useState('')
-  const [saved, setSaved] = useState(initialSaved)
+  const [saved, setSaved] = useState<SavedQuery[]>([])
   const [notice, setNotice] = useState('')
   const [settingsTab, setSettingsTab] = useState('Основные')
   const [sourceModal, setSourceModal] = useState(false)
@@ -129,11 +170,85 @@ function App() {
   const [sourceUrl, setSourceUrl] = useState('')
   const [sourcePlatform, setSourcePlatform] = useState<Platform>('VK')
   const [sourceEdit, setSourceEdit] = useState<number | null>(null)
+  const [sourceError, setSourceError] = useState('')
   const [settingsSaved, setSettingsSaved] = useState(false)
   const [selectedPublication, setSelectedPublication] = useState<Publication | null>(null)
   const [profileMenuOpen, setProfileMenuOpen] = useState(false)
   const [themeMode, setThemeMode] = useState<ThemeMode>(getStoredThemeMode)
   const [cityBackground, setCityBackground] = useState<CityBackground>(() => getCityBackground(themeMode))
+
+  const handleLogout = async () => {
+    if (!guestMode) {
+      try {
+        await api.auth.logout()
+      } catch (e) {
+        console.error('Logout failed', e)
+      }
+    }
+    window.localStorage.removeItem('krasnopars-token')
+    window.localStorage.removeItem(guestSessionKey)
+    setUser(null)
+    setGuestMode(false)
+    setSaved([])
+    setResults([])
+    setSearchId(null)
+    setHasSearched(false)
+    setPage('login')
+    setProfileMenuOpen(false)
+  }
+
+  const handleGuestLogin = () => {
+    window.localStorage.removeItem('krasnopars-token')
+    window.localStorage.setItem(guestSessionKey, 'true')
+    setUser(null)
+    setGuestMode(true)
+    setSaved([])
+    setResults([])
+    setSearchId(null)
+    setHasSearched(false)
+    setPage('results')
+  }
+
+  const handleAuthDone = (userData: AuthResponse) => {
+    window.localStorage.setItem('krasnopars-token', userData.token)
+    window.localStorage.removeItem(guestSessionKey)
+    setUser(userData.user)
+    setGuestMode(false)
+    setPage('results')
+  }
+
+  useEffect(() => {
+    const checkAuth = async () => {
+      const token = window.localStorage.getItem('krasnopars-token')
+      if (!token) {
+        setIsAuthChecking(false)
+        return
+      }
+      try {
+        const userData = await api.auth.me()
+        setUser(userData)
+      } catch (e) {
+        window.localStorage.removeItem('krasnopars-token')
+        window.localStorage.removeItem(guestSessionKey)
+        setUser(null)
+        setGuestMode(false)
+        setPage('login')
+      } finally {
+        setIsAuthChecking(false)
+      }
+    }
+    void checkAuth()
+  }, [])
+
+  useEffect(() => {
+    const onUnauthorized = () => {
+      setUser(null)
+      setGuestMode(false)
+      setPage('login')
+    }
+    window.addEventListener('krasnopars-unauthorized', onUnauthorized)
+    return () => window.removeEventListener('krasnopars-unauthorized', onUnauthorized)
+  }, [])
 
   useEffect(() => {
     const updateBackground = () => {
@@ -159,30 +274,40 @@ function App() {
   }, [notice])
 
   useEffect(() => {
+    if (isAuthChecking || (!user && !guestMode)) return
     let cancelled = false
     const loadApiData = async () => {
-      const [sourceResult, historyResult, regionResult] = await Promise.allSettled([api.sources(), api.searches(), api.regions()])
-      void Promise.allSettled([api.health(), api.platforms(), api.aiStatus()])
+      try {
+        const [sourceResult, savedResult, regionResult] = await Promise.allSettled([api.sources(), guestMode ? Promise.resolve([]) : api.savedQueries(), api.regions()])
+        void Promise.allSettled([api.health(), api.platforms(), api.aiStatus()])
 
-      if (cancelled) return
-      if (sourceResult.status === 'fulfilled') setSources(sourceResult.value.map(mapSource))
-      else setApiError(`Источники API недоступны: ${getErrorMessage(sourceResult.reason)}`)
+        if (cancelled) return
+        if (sourceResult.status === 'fulfilled') setSources(sourceResult.value.map(mapSource))
+        else {
+          if (!(sourceResult.reason instanceof ApiError && sourceResult.reason.status === 401)) {
+            setApiError(`Источники API недоступны: ${getErrorMessage(sourceResult.reason)}`)
+          }
+        }
 
-      if (historyResult.status === 'fulfilled') {
-        setSaved(historyResult.value.map(item => ({
-          id: item.id,
-          name: item.query || `Поиск №${item.id}`,
-          query: item.query,
-          period: formatApiPeriod(item),
-          region: item.region || 'Все регионы',
-          favorite: false,
-        })))
+        if (savedResult.status === 'fulfilled') {
+          setSaved(savedResult.value.map(item => ({
+            id: item.id,
+            name: item.name || item.query || `Запрос №${item.id}`,
+            query: item.query,
+            period: item.period || '—',
+            region: item.region || 'Все регионы',
+            favorite: item.favorite,
+            createdAt: item.createdAt,
+          })))
+        }
+        if (regionResult.status === 'fulfilled' && regionResult.value.length) setRegions(regionResult.value)
+      } catch (e) {
+        console.error('Failed to load initial data', e)
       }
-      if (regionResult.status === 'fulfilled' && regionResult.value.length) setRegions(regionResult.value)
     }
     void loadApiData()
     return () => { cancelled = true }
-  }, [])
+  }, [user, guestMode, isAuthChecking])
 
   const togglePlatform = (platform: Platform) => setPlatforms(current => current.includes(platform) ? current.filter(value => value !== platform) : [...current, platform])
   const updateQuery = (value: string) => {
@@ -197,12 +322,9 @@ function App() {
     setNotice('')
     setApiError('')
   }
-  const runSearch = async (event: FormEvent) => {
-    event.preventDefault()
-    if (!query.trim() || isSearching) return
-    const sourceIds = sources.filter(source => source.active && platforms.includes(source.platform)).map(source => source.id)
-    if (!sourceIds.length) {
-      setApiError('Выберите хотя бы одну площадку с активным источником.')
+  const executeSearch = async (params: { query: string; dateFrom?: string; dateTo?: string; region?: string }) => {
+    if (searchMode === 'BY_SOURCES' && platforms.length === 0) {
+      setApiError('Выберите хотя бы одну площадку для поиска.')
       return
     }
 
@@ -212,16 +334,29 @@ function App() {
     setIsSearching(true)
     setHasSearched(true)
     setPage('results')
-    setResults([])
     try {
+      // Источники могли измениться после открытия страницы, поэтому берём актуальные ID перед поиском.
+      let sourceIds: number[] = []
+      if (searchMode === 'BY_SOURCES') {
+        const currentSources = await api.sources()
+        if (searchRunRef.current !== runId) return
+        setSources(currentSources.map(mapSource))
+        sourceIds = currentSources
+          .filter(source => source.active && platforms.includes(source.platform) && !deselectedSourceIds.includes(source.id))
+          .map(source => source.id)
+        if (sourceIds.length === 0) {
+          setApiError('Для выбранных площадок нет отмеченных активных источников. Отметьте источники на вкладке «Источники» или выберите другую площадку.')
+          return
+        }
+      }
       const created = await api.createSearch({
-        query: query.trim(),
+        query: params.query,
         searchType: 'TOPIC',
-        mode: 'BY_SOURCES',
+        mode: searchMode,
         sourceIds,
-        dateFrom: periodStart || undefined,
-        dateTo: periodEnd || undefined,
-        region: region || undefined,
+        dateFrom: params.dateFrom,
+        dateTo: params.dateTo,
+        region: params.region,
         provider: 'real',
         useAi: true,
       })
@@ -232,12 +367,12 @@ function App() {
       if (searchRunRef.current !== runId) return
       setSearchStatus(completed.status)
       if (completed.status === 'FAILED') throw new Error(completed.error || 'Поиск завершился с ошибкой.')
-      const publicationPage = await api.publications(created.id)
+      const publicationPage = await loadSearchPublications(created.id)
       if (searchRunRef.current !== runId) return
-      setResults(publicationPage.content.map(mapPublication))
+      setResults(publicationPage.items)
       setNotice(completed.status === 'COMPLETED_PARTIAL'
-        ? `Поиск завершён частично: найдено ${publicationPage.totalElements} публикаций, часть источников недоступна.`
-        : `Поиск завершён: найдено ${publicationPage.totalElements} публикаций.`)
+        ? `Поиск завершён частично: найдено ${publicationPage.total} публикаций, часть источников недоступна.`
+        : `Поиск завершён: найдено ${publicationPage.total} публикаций.`)
     } catch (error) {
       if (searchRunRef.current !== runId) return
       setSearchStatus('FAILED')
@@ -246,31 +381,64 @@ function App() {
       if (searchRunRef.current === runId) setIsSearching(false)
     }
   }
+  const runSearch = async (event: FormEvent) => {
+    event.preventDefault()
+    if (!query.trim() || isSearching) return
+    await executeSearch({ query: query.trim(), dateFrom: periodStart || undefined, dateTo: periodEnd || undefined, region: region || undefined })
+  }
   const openSaved = async (item: SavedQuery) => {
-    searchRunRef.current += 1
+    const [from, to] = (item.period || '').split('—').map(part => part.trim())
+    const savedRegion = item.region && item.region !== 'Все регионы' ? item.region : ''
     setQuery(item.query)
-    if (item.region !== 'Все регионы') setRegion(item.region)
+    if (savedRegion) setRegion(savedRegion)
+    if (from || to) {
+      setPeriodStart(from || periodStart)
+      setPeriodEnd(to || periodEnd)
+    }
+
     setPage('results')
-    setHasSearched(true)
     setIsSearching(true)
+    setHasSearched(true)
     setApiError('')
+    setNotice('')
+    setResults([])
+
     try {
-      const [search, publicationPage] = await Promise.all([api.search(item.id), api.publications(item.id)])
-      setSearchId(item.id)
-      setSearchStatus(search.status)
-      setResults(publicationPage.content.map(mapPublication))
-      setNotice(`Загружены результаты поиска №${item.id} из истории API.`)
-    } catch (error) {
-      setApiError(getErrorMessage(error))
-    } finally {
+      // Пытаемся найти уже выполненный поиск с таким же запросом в истории
+      const history = await api.searches()
+      const existing = history.find(s =>
+        s.query === item.query &&
+        (s.status === 'COMPLETED' || s.status === 'COMPLETED_PARTIAL')
+      )
+
+      if (existing) {
+        setSearchId(existing.id)
+        setSearchStatus(existing.status)
+        const publicationPage = await loadSearchPublications(existing.id)
+        setResults(publicationPage.items)
+        setNotice(`Загружены результаты последнего поиска по этому запросу (№${existing.id})`)
+        setIsSearching(false)
+        return
+      }
+
+      // Если не нашли готового — запускаем новый
+      await executeSearch({
+        query: item.query,
+        dateFrom: from || undefined,
+        dateTo: to || undefined,
+        region: savedRegion || undefined,
+      })
+    } catch (e) {
+      setApiError(getErrorMessage(e))
       setIsSearching(false)
     }
   }
-  const openSourceDialog = (source?: Source) => { setSourceEdit(source?.id ?? null); setSourceName(source?.name ?? ''); setSourceUrl(source?.url ?? ''); setSourcePlatform(source?.platform ?? 'VK'); setSourceModal(true) }
+  const openSourceDialog = (source?: Source) => { setSourceEdit(source?.id ?? null); setSourceName(source?.name ?? ''); setSourceUrl(source?.url ?? ''); setSourcePlatform(source?.platform ?? 'VK'); setSourceError(''); setSourceModal(true) }
   const submitSource = async (event: FormEvent) => {
     event.preventDefault()
     if (!sourceName.trim() || !sourceUrl.trim()) return
     setApiError('')
+    setSourceError('')
     try {
       const url = /^https?:\/\//i.test(sourceUrl.trim()) ? sourceUrl.trim() : `https://${sourceUrl.trim()}`
       const payload = { name: sourceName.trim(), url, platform: sourcePlatform, active: true }
@@ -279,13 +447,23 @@ function App() {
         : await api.updateSource(sourceEdit, { ...payload, active: sources.find(item => item.id === sourceEdit)?.active ?? true })
       const mapped = mapSource(savedSource)
       setSources(current => sourceEdit === null ? [mapped, ...current] : current.map(item => item.id === sourceEdit ? mapped : item))
+      if (sourceEdit === null) setDeselectedSourceIds(current => current.filter(id => id !== mapped.id))
       setSourceModal(false)
       setNotice(sourceEdit === null ? 'Источник добавлен через API.' : 'Источник обновлён через API.')
     } catch (error) {
-      setApiError(getErrorMessage(error))
+      setSourceError(getErrorMessage(error))
     }
   }
-  const toggleSource = async (id: number) => {
+  const toggleSourceSelection = (id: number) => {
+    setDeselectedSourceIds(current => current.includes(id) ? current.filter(value => value !== id) : [...current, id])
+  }
+  const toggleAllSourceSelection = (selected: boolean) => {
+    const activeIds = sources.filter(source => source.active).map(source => source.id)
+    setDeselectedSourceIds(current => selected
+      ? current.filter(id => !activeIds.includes(id))
+      : [...new Set([...current, ...activeIds])])
+  }
+  const toggleSourceActive = async (id: number) => {
     const source = sources.find(item => item.id === id)
     if (!source) return
     setApiError('')
@@ -301,24 +479,84 @@ function App() {
     try {
       await api.deleteSource(id)
       setSources(current => current.filter(item => item.id !== id))
+      setDeselectedSourceIds(current => current.filter(value => value !== id))
       setNotice('Источник удалён через API.')
     } catch (error) {
       setApiError(getErrorMessage(error))
     }
   }
+  const deleteAllSources = async () => {
+    if (!sources.length || !window.confirm(`Удалить все источники (${sources.length})?`)) return
+    const deletedIds: number[] = []
+    let failures = 0
+    for (const source of sources) {
+      try {
+        await api.deleteSource(source.id)
+        deletedIds.push(source.id)
+      } catch {
+        failures += 1
+      }
+    }
+    setSources(current => current.filter(source => !deletedIds.includes(source.id)))
+    setDeselectedSourceIds(current => current.filter(id => !deletedIds.includes(id)))
+    if (failures) setApiError(`Не удалось удалить ${failures} источн${failures === 1 ? 'ик' : 'иков'}.`)
+    else setNotice('Все источники удалены.')
+  }
   const removeSaved = async (id: number) => {
     setApiError('')
     try {
-      await api.deleteSearch(id)
+      await api.deleteSavedQuery(id)
       setSaved(current => current.filter(item => item.id !== id))
-      if (searchId === id) {
-        setSearchId(null)
-        setResults([])
-        setHasSearched(false)
-      }
-      setNotice('Поиск удалён из истории API.')
+      setNotice('Запрос удалён.')
     } catch (error) {
       setApiError(getErrorMessage(error))
+    }
+  }
+  const removeAllSaved = async () => {
+    const outcomes = await Promise.allSettled(saved.map(item => api.deleteSavedQuery(item.id)))
+    const removedIds = new Set(saved.filter((_, index) => outcomes[index].status === 'fulfilled').map(item => item.id))
+    setSaved(current => current.filter(item => !removedIds.has(item.id)))
+    if (outcomes.some(outcome => outcome.status === 'rejected')) setApiError('Не все запросы удалось удалить.')
+  }
+  const clearAllFavorites = async () => {
+    const favorites = saved.filter(item => item.favorite)
+    const outcomes = await Promise.allSettled(favorites.map(item => api.toggleFavoriteQuery(item.id, false)))
+    const updatedIds = new Set(favorites.filter((_, index) => outcomes[index].status === 'fulfilled').map(item => item.id))
+    setSaved(current => current.map(item => updatedIds.has(item.id) ? { ...item, favorite: false } : item))
+    if (outcomes.some(outcome => outcome.status === 'rejected')) setApiError('Не все запросы удалось убрать из избранного.')
+  }
+  const toggleFavorite = async (id: number) => {
+    const current = saved.find(item => item.id === id)
+    if (!current) return
+    try {
+      const updated = await api.toggleFavoriteQuery(id, !current.favorite)
+      setSaved(items => items.map(item => item.id === id ? { ...item, favorite: updated.favorite } : item))
+    } catch (e) {
+      setApiError(getErrorMessage(e))
+    }
+  }
+  const saveCurrentSearch = async () => {
+    if (!query.trim()) return
+    try {
+      const created = await api.saveQuery({
+        name: query.trim(),
+        query: query.trim(),
+        period: `${periodStart} — ${periodEnd}`,
+        region,
+        favorite: false
+      })
+      setSaved(current => [...current, {
+        id: created.id,
+        name: created.name,
+        query: created.query,
+        period: created.period || '—',
+        region: created.region || 'Все регионы',
+        favorite: created.favorite,
+        createdAt: created.createdAt,
+      }])
+      setNotice('Запрос сохранён в список')
+    } catch (e) {
+      setApiError(getErrorMessage(e))
     }
   }
   const exportResults = async () => {
@@ -331,7 +569,18 @@ function App() {
     }
   }
 
-  if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={() => setPage('results')}/>
+  if (isAuthChecking) return <div className="auth-screen" data-city-background={cityBackground}>
+    <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
+      <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
+    </video>
+    <div className="auth-logo"><img className="auth-emblem" src="/favicon.png" alt="Герб Красноярского края со львом"/><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
+    <div className="auth-card" style={{ alignItems: 'center', justifyContent: 'center', minHeight: '200px' }}>
+      <div className="results-loading"><span><Search size={40} color="#df2943"/></span></div>
+      <p style={{ marginTop: '20px', color: '#667085' }}>Загрузка профиля...</p>
+    </div>
+  </div>
+
+  if (page === 'login' || page === 'register') return <AuthScreen mode={page} cityBackground={cityBackground} onSwitch={mode => setPage(mode)} onDone={handleAuthDone} onGuest={handleGuestLogin}/>
   return <div className="app-shell" data-city-background={cityBackground}>
     <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
@@ -342,11 +591,10 @@ function App() {
         <NavItem active={page === 'results' || page === 'publication'} icon={<Newspaper size={18}/>} onClick={() => setPage('results')}>Поиск</NavItem>
         <NavItem active={page === 'sources'} icon={<Users size={18}/>} onClick={() => setPage('sources')}>Источники</NavItem>
         <NavItem active={page === 'saved'} icon={<Bookmark size={18}/>} onClick={() => setPage('saved')}>Сохранённые запросы</NavItem>
-        <NavItem active={page === 'analytics'} icon={<BarChart3 size={18}/>} onClick={() => setPage('analytics')}>Аналитика</NavItem>
         <NavItem active={page === 'settings'} icon={<Settings size={18}/>} onClick={() => setPage('settings')}>Настройки</NavItem>
       </nav>
-      <div className="nav-user-actions"><button className="nav-theme-toggle" aria-label={cityBackground === 'evening' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Сменить тему" onClick={() => setThemeMode(cityBackground === 'evening' ? 'light' : 'dark')}>{cityBackground === 'evening' ? <Sun size={18}/> : <Moon size={18}/>}</button><div className="profile-menu-wrap"><div className="nav-profile" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setProfileMenuOpen(open => !open) }}><div className="nav-profile-copy"><b>Иван Петров</b></div>{profileMenuOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</div>{profileMenuOpen && <div className="profile-menu"><button type="button" onClick={() => { setProfileMenuOpen(false); setPage('login') }}>Выйти</button></div>}</div></div>
-      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div><b>Иван Петров</b></div><ChevronDown size={15}/></div></div>
+      <div className="nav-user-actions"><button className="nav-theme-toggle" aria-label={cityBackground === 'evening' ? 'Включить светлую тему' : 'Включить тёмную тему'} title="Сменить тему" onClick={() => setThemeMode(cityBackground === 'evening' ? 'light' : 'dark')}>{cityBackground === 'evening' ? <Sun size={18}/> : <Moon size={18}/>}</button><div className="profile-menu-wrap"><div className="nav-profile" role="button" tabIndex={0} aria-expanded={profileMenuOpen} onClick={() => setProfileMenuOpen(open => !open)} onKeyDown={event => { if (event.key === 'Enter' || event.key === ' ') setProfileMenuOpen(open => !open) }}><div className="nav-profile-copy"><b>{user?.name || 'Гость'}</b></div>{profileMenuOpen ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}</div>{profileMenuOpen && <div className="profile-menu"><button type="button" onClick={handleLogout}>Выйти</button></div>}</div></div>
+      <div className="sidebar-bottom"><div className="help-card"><CircleHelp size={18}/><div><b>Справка</b><span>Инструкции и ответы<br/>на частые вопросы →</span></div></div><div className="sidebar-user"><div><b>{user?.name || 'Гость'}</b></div><ChevronDown size={15}/></div></div>
     </aside>
     <main className="main-area">
       <div className="page-content">
@@ -364,30 +612,77 @@ function App() {
           results={results} query={query} setQuery={updateQuery} hasSearched={hasSearched} isSearching={isSearching}
           periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd}
           region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform}
-          onSubmit={runSearch} onExport={exportResults} onOpen={item => { setSelectedPublication(item); setPage('publication') }}
+          onSubmit={runSearch} onExport={exportResults} searchMode={searchMode} setSearchMode={setSearchMode} onOpen={item => { setSelectedPublication(item); setPage('publication'); window.scrollTo(0, 0) }}
+          onSave={saveCurrentSearch}
         />}
-        {page === 'publication' && selectedPublication && <PublicationPage item={selectedPublication} onBack={() => setPage('results')}/>} 
-        {page === 'sources' && <SourcesPage sources={sources} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggle={toggleSource} onDelete={deleteSource}/>}
+        {page === 'publication' && selectedPublication && <PublicationPage
+          item={selectedPublication}
+          position={results.findIndex(result => result.id === selectedPublication.id)}
+          total={results.length}
+          onNavigate={offset => {
+            const index = results.findIndex(result => result.id === selectedPublication.id)
+            const next = results[index + offset]
+            if (next) { setSelectedPublication(next); window.scrollTo(0, 0) }
+          }}
+          onBack={() => setPage('results')}
+        />}
+        {page === 'sources' && <SourcesPage sources={sources} deselectedSourceIds={deselectedSourceIds} onAdd={() => openSourceDialog()} onEdit={openSourceDialog} onToggleSelection={toggleSourceSelection} onToggleAllSelection={toggleAllSourceSelection} onToggleActive={toggleSourceActive} onDelete={deleteSource} onDeleteAll={deleteAllSources}/>}
         {page === 'saved' && <SavedPage
-          items={saved} onOpen={openSaved} onRemove={removeSaved}
+          items={saved} onOpen={openSaved} onRemove={removeSaved} onRemoveAll={removeAllSaved} onClearFavorites={clearAllFavorites}
           onNew={() => { setQuery(''); setHasSearched(false); setPage('results') }}
-          onFavorite={id => setSaved(current => current.map(item => item.id === id ? { ...item, favorite: !item.favorite } : item))}
+          onFavorite={toggleFavorite}
         />}
         {page === 'analytics' && <AnalyticsPage/>}
         {page === 'settings' && <SettingsPage tab={settingsTab} setTab={setSettingsTab} region={region} setRegion={setRegion} themeMode={themeMode} setThemeMode={setThemeMode} onSave={() => { setSettingsSaved(true); window.setTimeout(() => setSettingsSaved(false), 2500) }} saved={settingsSaved}/>}
       </div>
     </main>
-    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}><div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div><label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label><label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder="vk.com/community"/></label><label>Площадка<select value={sourcePlatform} onChange={event => setSourcePlatform(event.target.value as Platform)}><option>VK</option><option>OK</option><option>MAX</option></select></label><div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div></form></div>}
+    {sourceModal && <div className="modal-backdrop" onClick={() => setSourceModal(false)}><form className="source-modal" onClick={event => event.stopPropagation()} onSubmit={submitSource}>
+      <div className="modal-heading"><div><h2>{sourceEdit === null ? 'Добавить источник' : 'Редактировать источник'}</h2><p>Укажите страницу или сообщество для мониторинга</p></div><button type="button" className="icon-button" onClick={() => setSourceModal(false)}><X size={18}/></button></div>
+      <label>Название<input required value={sourceName} onChange={event => setSourceName(event.target.value)} placeholder="Например, Новости города"/></label>
+      <label>Ссылка<input required value={sourceUrl} onChange={event => setSourceUrl(event.target.value)} placeholder={sourceUrlPlaceholder[sourcePlatform]}/></label>
+      <div className="source-platform-field"><span>Площадка</span><SourcePlatformPicker value={sourcePlatform} onChange={setSourcePlatform}/></div>
+      {sourceError && <p className="source-modal-error" role="alert">{sourceError}</p>}
+      <div className="modal-actions"><button type="button" className="button-secondary" onClick={() => setSourceModal(false)}>Отмена</button><button className="button-primary"><Check size={16}/>Сохранить</button></div>
+    </form></div>}
   </div>
 }
 
-function AuthScreen({ mode, cityBackground, onSwitch, onDone }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+function SourcePlatformPicker({ value, onChange }: { value: Platform; onChange: (platform: Platform) => void }) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLSpanElement>(null)
+  const triggerRef = useRef<HTMLButtonElement>(null)
+  const options: Platform[] = ['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN']
+
+  useEffect(() => {
+    if (!open) return
+    const closeOutside = (event: PointerEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    const closeEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') { setOpen(false); triggerRef.current?.focus() }
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape) }
+  }, [open])
+
+  return <span ref={rootRef} className={`source-platform-select ${open ? 'is-open' : ''}`}>
+    <button ref={triggerRef} type="button" className="source-platform-trigger" aria-label="Выбрать площадку" aria-expanded={open} onClick={() => setOpen(current => !current)} onKeyDown={event => { if (event.key === 'ArrowDown') { event.preventDefault(); setOpen(true) } }}>
+      <PlatformBadge platform={value} size={28}/><span>{platformLabel[value]}</span><ChevronDown className="source-platform-chevron" size={18} aria-hidden="true"/>
+    </button>
+    {open && <div className="source-platform-options" aria-label="Площадки">
+      {options.map(platform => <button key={platform} type="button" className={platform === value ? 'selected' : ''} onClick={() => { onChange(platform); setOpen(false); triggerRef.current?.focus() }}><PlatformBadge platform={platform} size={25}/><span>{platformLabel[platform]}</span>{platform === value && <Check size={17} aria-hidden="true"/>}</button>)}
+    </div>}
+  </span>
+}
+
+function AuthScreen({ mode, cityBackground, onSwitch, onDone, onGuest }: { mode: 'login' | 'register'; cityBackground: CityBackground; onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void; onGuest: () => void }) {
   return <div className={`auth-screen auth-screen--${mode}`} data-city-background={cityBackground}>
     <video key={cityBackground} className="theme-background-video" autoPlay muted loop playsInline preload="metadata" aria-hidden="true" tabIndex={-1}>
       <source src={cityBackground === 'evening' ? '/winter-snow.mp4' : '/winter-day-snow.mp4'} type="video/mp4"/>
     </video>
     <div className="auth-logo"><img className="auth-emblem" src="/favicon.png" alt="Герб Красноярского края со львом"/><div className="auth-logo-text"><b>КрасноПарс</b><span>Красноярский край</span></div></div>
-    {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
+    {mode === 'login' ? <AuthLoginForm onSwitch={onSwitch} onDone={onDone} onGuest={onGuest}/> : <AuthRegisterForm onSwitch={onSwitch} onDone={onDone}/>}
   </div>
 }
 
@@ -404,16 +699,25 @@ function AuthCheck({ checked, onChange, label, variant }: { checked: boolean; on
   return <button type="button" role="checkbox" aria-checked={checked} aria-label={label} className={`auth-check auth-check-${variant} ${checked ? 'auth-check-on' : ''}`} onClick={onChange}><Check size={14} strokeWidth={3.2}/></button>
 }
 
-function AuthLoginForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+function AuthLoginForm({ onSwitch, onDone, onGuest }: { onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void; onGuest: () => void }) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [remember, setRemember] = useState(true)
   const [error, setError] = useState('')
-  const submit = (event: FormEvent) => {
+  const [loading, setLoading] = useState(false)
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (!email.trim() || !password) { setError('Введите электронную почту и пароль'); return }
     setError('')
-    onDone()
+    setLoading(true)
+    try {
+      const data = await api.auth.login({ email: email.trim(), password })
+      onDone(data)
+    } catch (e) {
+      setError(getErrorMessage(e))
+    } finally {
+      setLoading(false)
+    }
   }
   return <form className="auth-card" onSubmit={submit}>
     <h1>Вход в систему</h1>
@@ -426,25 +730,35 @@ function AuthLoginForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'regis
     </label>
     <div className="auth-row"><AuthCheck checked={remember} onChange={() => setRemember(!remember)} label="Запомнить меня" variant="solid"/><span>Запомнить меня</span></div>
     {error && <p className="auth-error">{error}</p>}
-    <button className="auth-submit">Войти</button>
+    <button className="auth-submit" disabled={loading}>{loading ? 'Вход...' : 'Войти'}</button>
+    <button type="button" className="auth-guest" onClick={onGuest}>Войти как гость</button>
     <p className="auth-alt">Нет аккаунта? <button type="button" onClick={() => onSwitch('register')}>Зарегистрироваться</button></p>
   </form>
 }
 
-function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: () => void }) {
+function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 'register') => void; onDone: (data: AuthResponse) => void }) {
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
   const [agree, setAgree] = useState(false)
   const [error, setError] = useState('')
-  const submit = (event: FormEvent) => {
+  const [loading, setLoading] = useState(false)
+  const submit = async (event: FormEvent) => {
     event.preventDefault()
     if (password.length < 6) { setError('Пароль должен содержать не менее 6 символов'); return }
     if (password !== confirm) { setError('Пароли не совпадают'); return }
     if (!agree) { setError('Согласитесь с политикой обработки персональных данных'); return }
     setError('')
-    onDone()
+    setLoading(true)
+    try {
+      const data = await api.auth.register({ name: name.trim(), email: email.trim(), password })
+      onDone(data)
+    } catch (e) {
+      setError(getErrorMessage(e))
+    } finally {
+      setLoading(false)
+    }
   }
   return <form className="auth-card" onSubmit={submit}>
     <h1>Регистрация</h1>
@@ -463,7 +777,7 @@ function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 're
     </label>
     <div className="auth-row auth-row--top"><AuthCheck checked={agree} onChange={() => setAgree(!agree)} label="Согласие с политикой обработки персональных данных" variant="outline"/><span>Я согласен с <button type="button" className="auth-policy">политикой обработки персональных данных</button></span></div>
     {error && <p className="auth-error">{error}</p>}
-    <button className="auth-submit">Зарегистрироваться</button>
+    <button className="auth-submit" disabled={loading}>{loading ? 'Регистрация...' : 'Зарегистрироваться'}</button>
     <p className="auth-alt">Уже есть аккаунт? <button type="button" onClick={() => onSwitch('login')}>Войти</button></p>
   </form>
 }
@@ -471,20 +785,12 @@ function AuthRegisterForm({ onSwitch, onDone }: { onSwitch: (mode: 'login' | 're
 function NavItem({ active, icon, onClick, children }: { active: boolean; icon: ReactNode; onClick: () => void; children: ReactNode }) { return <button onClick={onClick} className={`nav-link ${active ? 'nav-active' : ''}`}>{icon}<span>{children}</span></button> }
 
 function PlatformBadge({ platform, size = 44 }: { platform: Platform; size?: number }) {
-  if (platform === 'VK') return <span className="pl-badge pl-vk" style={{ width: size, height: size }}><img src="/vk-logo.svg" alt="" aria-hidden="true"/></span>
-  if (platform === 'OK') return <span className="pl-badge pl-ok" style={{ width: size, height: size }}>
-    <svg width={Math.round(size * 0.68)} height={Math.round(size * 0.68)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <circle cx="32" cy="18" r="8" fill="#fff"/>
-      <path d="M17 34.5c4.4 4.3 9.4 6.4 15 6.4s10.6-2.1 15-6.4" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
-      <path d="M27.5 42.5 17 54M36.5 42.5 47 54" stroke="#fff" strokeWidth="7" strokeLinecap="round"/>
-    </svg>
-  </span>
-  return <span className="pl-badge pl-max" style={{ width: size, height: size }}>
-    <svg width={Math.round(size * 0.72)} height={Math.round(size * 0.72)} viewBox="0 0 64 64" fill="none" aria-hidden="true">
-      <circle cx="33" cy="29" r="19" stroke="#fff" strokeWidth="10"/>
-      <path d="M20 43 13.5 54.5" stroke="#fff" strokeWidth="10" strokeLinecap="round" strokeLinejoin="round"/>
-    </svg>
-  </span>
+  const icon = platformIcon[platform]
+  if (icon) {
+    return <img className="pl-logo" src={icon} width={size} height={size} alt="" loading="lazy" draggable={false}/>
+  }
+  const short = platform === 'TG' ? 'TG' : platform === 'SITE' ? 'WWW' : platform === 'DZEN' ? 'Д' : platform
+  return <span className={`pl-badge pl-${platform.toLowerCase()}`} style={{ width: size, height: size, fontSize: Math.round(size * 0.3) }}>{short}</span>
 }
 
 function Switch({ checked, onChange, blue, large, label }: { checked: boolean; onChange: () => void; blue?: boolean; large?: boolean; label: string }) {
@@ -560,11 +866,11 @@ function CompactDateInput({ value, min, max, onChange, label }: { value: string;
         <button type="button" aria-label="Предыдущий месяц" disabled={Boolean(minMonth && viewMonth <= minMonth)} onClick={() => setViewMonth(current => new Date(current.getFullYear(), current.getMonth() - 1, 1))}><ChevronLeft size={17}/></button>
         <div className="date-calendar-period">
           <div className={`date-calendar-select ${periodPicker === 'month' ? 'open' : ''}`}>
-            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'month'} onClick={() => setPeriodPicker(current => current === 'month' ? null : 'month')}><span>{monthOptions[viewMonth.getMonth()]}</span><ChevronDown size={13}/></button>
+            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'month'} onClick={() => setPeriodPicker(current => current === 'month' ? null : 'month')}><span>{monthOptions[viewMonth.getMonth()]}</span></button>
             {periodPicker === 'month' && <div className="date-calendar-options" role="listbox" aria-label="Выбрать месяц">{monthOptions.map((month, index) => { const monthDate = new Date(viewMonth.getFullYear(), index, 1); const outOfRange = Boolean((minMonth && monthDate < minMonth) || (maxMonth && monthDate > maxMonth)); return <button type="button" role="option" aria-selected={index === viewMonth.getMonth()} className={index === viewMonth.getMonth() ? 'selected' : ''} key={month} disabled={outOfRange} onClick={() => { setViewMonth(monthDate); setPeriodPicker(null) }}>{month}</button> })}</div>}
           </div>
           <div className={`date-calendar-select date-calendar-year ${periodPicker === 'year' ? 'open' : ''}`}>
-            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'year'} onClick={() => setPeriodPicker(current => current === 'year' ? null : 'year')}><span>{viewMonth.getFullYear()}</span><ChevronDown size={13}/></button>
+            <button type="button" className="date-calendar-select-trigger" aria-haspopup="listbox" aria-expanded={periodPicker === 'year'} onClick={() => setPeriodPicker(current => current === 'year' ? null : 'year')}><span>{viewMonth.getFullYear()}</span></button>
             {periodPicker === 'year' && <div className="date-calendar-options" role="listbox" aria-label="Выбрать год">{yearOptions.map(year => <button type="button" role="option" aria-selected={year === viewMonth.getFullYear()} className={year === viewMonth.getFullYear() ? 'selected' : ''} ref={year === viewMonth.getFullYear() ? activeYearRef : undefined} key={year} onClick={() => { setViewMonth(current => new Date(year, current.getMonth(), 1)); setPeriodPicker(null) }}>{year}</button>)}</div>}
           </div>
         </div>
@@ -596,16 +902,30 @@ function RegionDropdown({ value, options, onChange, className = '' }: { value: s
   }, [open])
 
   return <div className={`region-select ${className} ${open ? 'open' : ''}`} ref={dropdownRef} onKeyDown={event => { if (event.key === 'Escape') setOpen(false) }}>
-    <button type="button" className="region-select-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(current => !current)}><MapPin size={14}/><span>{value}</span><ChevronDown size={13}/></button>
+    <button type="button" className="region-select-trigger" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(current => !current)}><MapPin size={14}/><span>{value}</span></button>
     {open && <div className="region-select-options" role="listbox" aria-label="Выбрать регион">{options.map(item => <button type="button" role="option" aria-selected={item === value} className={item === value ? 'selected' : ''} key={item} onClick={() => { onChange(item); setOpen(false) }}>{item}</button>)}</div>}
   </div>
 }
 
-function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean }) {
-  const [scope, setScope] = useState<'all' | 'selected'>('all')
+function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, embedded = false, isSearching = false, searchMode, setSearchMode }: { query: string; setQuery: (v: string) => void; periodStart: string; setPeriodStart: (v: string) => void; periodEnd: string; setPeriodEnd: (v: string) => void; region: string; setRegion: (v: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (p: Platform) => void; onSubmit: (e: FormEvent) => void; embedded?: boolean; isSearching?: boolean; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
   const [officialOnly, setOfficialOnly] = useState(false)
   const [withMedia, setWithMedia] = useState(false)
   const [excludeReposts, setExcludeReposts] = useState(false)
+  const [customLinks, setCustomLinks] = useState<CustomSearchLink[]>(readCustomSearchLinks)
+  const focusCustomLinkRef = useRef<string | null>(null)
+  useEffect(() => {
+    try { window.localStorage.setItem(customSearchLinksStorageKey, JSON.stringify(customLinks)) } catch { /* Browser storage may be unavailable. */ }
+    if (focusCustomLinkRef.current) {
+      document.getElementById(`custom-search-link-${focusCustomLinkRef.current}`)?.focus()
+      focusCustomLinkRef.current = null
+    }
+  }, [customLinks])
+  const addCustomLink = () => {
+    const id = `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    focusCustomLinkRef.current = id
+    setCustomLinks(current => [...current, { id, url: '' }])
+  }
+  const renderCustomLink = (link: CustomSearchLink, index: number) => <div className="platform-custom-link" key={link.id}><Link2 size={16}/><input id={`custom-search-link-${link.id}`} type="text" inputMode="url" autoComplete="url" aria-label={`Ссылка на сайт ${index + 1}`} placeholder="https://avangardkray.ru/" value={link.url} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault() }} onChange={event => setCustomLinks(current => current.map(item => item.id === link.id ? { ...item, url: event.target.value } : item))}/><button type="button" aria-label={`Удалить ссылку ${index + 1}`} onClick={() => setCustomLinks(current => current.filter(item => item.id !== link.id))}><X size={15}/></button></div>
   if (embedded) return <form className="results-search-panel" onSubmit={onSubmit}>
     <div className="results-search-copy"><h1>Поиск публикаций</h1><p>Введите тему, событие или ключевые слова — найденные публикации появятся ниже.</p></div>
     <div className="results-search-row">
@@ -617,7 +937,26 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
       <label><span>Период с</span><CompactDateInput value={periodStart} max={capToToday(periodEnd) || undefined} label="Начало периода" onChange={setPeriodStart}/></label>
       <label><span>по</span><CompactDateInput value={periodEnd} min={periodStart} max={todayInputValue()} label="Конец периода" onChange={setPeriodEnd}/></label>
       <div className="results-region"><span>Регион</span><RegionDropdown value={region} options={regions} onChange={setRegion}/></div>
-      <fieldset className="platform-filter"><legend>Площадки</legend>{(['VK', 'OK', 'MAX'] as Platform[]).map(item => <button type="button" key={item} aria-pressed={platforms.includes(item)} className={platforms.includes(item) ? 'selected' : ''} onClick={() => togglePlatform(item)}><PlatformBadge platform={item} size={22}/><span>{item}</span></button>)}</fieldset>
+      <div className="platform-switch-container">
+        <span>Площадки</span>
+        <div className="platform-picker-row">
+          <div className={`platform-switch platform-switch-with-links ${customLinks.length > 0 ? 'platform-switch-with-link-rows' : ''}`}>
+            {(['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN'] as Platform[]).map(item => (
+              <button
+                type="button"
+                key={item}
+                className={`platform-switch-item ${platforms.includes(item) ? 'active' : ''}`}
+                onClick={() => togglePlatform(item)}
+              >
+                <PlatformBadge platform={item} size={20}/>
+                <span>{item}</span>
+              </button>
+            ))}
+            {customLinks.length > 0 && <div className="platform-custom-link-grid">{customLinks.map(renderCustomLink)}</div>}
+          </div>
+          <button type="button" className="platform-add-link" aria-label="Добавить ссылку на сайт" title="Добавить ссылку на сайт" onClick={addCustomLink}><Plus size={19}/></button>
+        </div>
+      </div>
     </div>
   </form>
   return <div className="search-page">
@@ -639,7 +978,6 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
               <input type="date" value={periodStart} max={capToToday(periodEnd) || undefined} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setPeriodStart(periodEnd && capped > periodEnd ? periodEnd : capped) }} aria-label="Начало периода"/>
               <span className="period-dash">—</span>
               <input type="date" value={periodEnd} min={periodStart} max={todayInputValue()} onMouseDown={event => event.preventDefault()} onClick={event => openDatePicker(event.currentTarget)} onChange={event => { const capped = capToToday(event.target.value); setPeriodEnd(periodStart && capped < periodStart ? periodStart : capped) }} aria-label="Конец периода"/>
-              <ChevronDown size={15}/>
             </div>
           </div>
           <div className="filter-block">
@@ -651,8 +989,8 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
           <div className="sources-left">
             <h3>Источники поиска</h3>
             <div className="scope-row">
-              <label className="radio"><input type="radio" name="search-scope" checked={scope === 'all'} onChange={() => setScope('all')}/><i/><span>Все источники</span></label>
-              <label className="radio"><input type="radio" name="search-scope" checked={scope === 'selected'} onChange={() => setScope('selected')}/><i/><span>Только выбранные</span></label>
+              <label className="radio"><input type="radio" name="search-mode" checked={searchMode === 'ALL_PLATFORMS'} onChange={() => setSearchMode('ALL_PLATFORMS')}/><i/><span>Все источники края</span></label>
+              <label className="radio"><input type="radio" name="search-mode" checked={searchMode === 'BY_SOURCES'} onChange={() => setSearchMode('BY_SOURCES')}/><i/><span>По выбранным площадкам</span></label>
             </div>
             <div className="mini-toggle"><Switch checked={officialOnly} onChange={() => setOfficialOnly(!officialOnly)} blue label="Только официальные источники"/><span>Только официальные источники</span></div>
             <h3 className="extra-heading">Дополнительные настройки</h3>
@@ -660,12 +998,19 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
             <div className="mini-toggle"><Switch checked={excludeReposts} onChange={() => setExcludeReposts(!excludeReposts)} blue label="Исключить репосты"/><span>Исключить репосты</span></div>
           </div>
           <div className="sources-right">
-            <div className="tiles-panel">
-              {(['VK', 'OK', 'MAX'] as Platform[]).map(item => <div className="ptile" key={item}>
-                <PlatformBadge platform={item}/>
-                <span className="ptile-name">{platformLabel[item]}</span>
-                <Switch checked={platforms.includes(item)} onChange={() => togglePlatform(item)} blue large label={`Искать в ${platformLabel[item]}`}/>
-              </div>)}
+            <span className="filter-label">Площадки поиска</span>
+            <div className="platform-switch">
+              {(['VK', 'OK', 'MAX', 'TG', 'SITE', 'DZEN'] as Platform[]).map(item => (
+                <button
+                  type="button"
+                  key={item}
+                  className={`platform-switch-item ${platforms.includes(item) ? 'active' : ''}`}
+                  onClick={() => togglePlatform(item)}
+                >
+                  <PlatformBadge platform={item} size={20}/>
+                  <span>{item}</span>
+                </button>
+              ))}
             </div>
             <button type="button" className="adv-link">Расширенные настройки <ArrowRight size={15}/></button>
           </div>
@@ -688,12 +1033,14 @@ function SearchPage({ query, setQuery, periodStart, setPeriodStart, periodEnd, s
 }
 function Toggle({ checked, onChange, title, description }: { checked: boolean; onChange: () => void; title: string; description: string }) { return <div className="toggle-row"><div><b>{title}</b><span>{description}</span></div><button type="button" className={`switch ${checked ? 'switch-on' : ''}`} onClick={onChange} role="switch" aria-checked={checked}><i/></button></div> }
 
-function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void }) {
+function ResultsPage({ results, query, setQuery, hasSearched, isSearching, periodStart, setPeriodStart, periodEnd, setPeriodEnd, region, setRegion, regions, platforms, togglePlatform, onSubmit, onExport, onOpen, onSave, searchMode, setSearchMode }: { results: Publication[]; query: string; setQuery: (value: string) => void; hasSearched: boolean; isSearching: boolean; periodStart: string; setPeriodStart: (value: string) => void; periodEnd: string; setPeriodEnd: (value: string) => void; region: string; setRegion: (value: string) => void; regions: string[]; platforms: Platform[]; togglePlatform: (platform: Platform) => void; onSubmit: (event: FormEvent) => void; onExport: () => void; onOpen: (item: Publication) => void; onSave: () => void; searchMode: 'BY_SOURCES' | 'ALL_PLATFORMS'; setSearchMode: (mode: 'BY_SOURCES' | 'ALL_PLATFORMS') => void }) {
   const [resultPage, setResultPage] = useState(1)
   const [sort, setSort] = useState<'relevance' | 'newest'>('relevance')
   const [savedResult, setSavedResult] = useState(false)
   const [selected, setSelected] = useState<number[]>([])
-  const shown = sort === 'newest' ? [...results].reverse() : results
+  const shown = sort === 'newest'
+    ? [...results].sort((a, b) => (b.publishedAtMs ?? Number.NEGATIVE_INFINITY) - (a.publishedAtMs ?? Number.NEGATIVE_INFINITY))
+    : results
   const pageSize = 4
   const pageItems = shown.slice(0, resultPage * pageSize)
   const pages = Math.max(1, Math.ceil(shown.length / pageSize))
@@ -711,36 +1058,59 @@ function ResultsPage({ results, query, setQuery, hasSearched, isSearching, perio
     return () => observer.disconnect()
   }, [resultPage, pages])
   return <div className="design-page results-page">
-    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} isSearching={isSearching}/>
+    <SearchPage embedded query={query} setQuery={setQuery} periodStart={periodStart} setPeriodStart={setPeriodStart} periodEnd={periodEnd} setPeriodEnd={setPeriodEnd} region={region} setRegion={setRegion} regions={regions} platforms={platforms} togglePlatform={togglePlatform} onSubmit={onSubmit} searchMode={searchMode} setSearchMode={setSearchMode} isSearching={isSearching}/>
     {hasSearched ? isSearching ? <div className="results-empty-state results-loading"><span><Search size={24}/></span><h2>Идёт поиск публикаций</h2><p>Сервер обрабатывает источники.</p></div> : <>
-    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => setSavedResult(!savedResult)} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
+    <div className="design-page-heading results-found-heading"><div><h1>Результаты поиска</h1><p className="results-query-caption">Запрос: «{query}»</p></div><div className="heading-actions"><button onClick={() => { onSave(); setSavedResult(true) }} className={`soft-action ${savedResult ? 'soft-action-saved' : ''}`}><Bookmark size={14}/>{savedResult ? 'Запрос сохранён' : 'Сохранить запрос'}</button><button onClick={onExport} className="primary-action" disabled={!results.length}><Download size={14}/>Выгрузить в Excel</button></div></div>
     <div className="results-summary-bar">
       <div className="summary-filter"><CalendarDays size={15}/><span>{prettyDate(periodStart)} — {prettyDate(periodEnd)}</span></div>
       <div className="summary-filter"><MapPin size={15}/><span>{region}</span></div>
       <span className="results-platform-summary">{platforms.length ? platforms.join(' · ') : 'Площадки не выбраны'}</span>
     </div>
-    <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select><ChevronDown size={12}/></label></div>
-      <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className="result-photo publication-thumb has-image"><img className="media-photo" src={item.image} alt=""/><span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
-      <div className="results-pagination"><span>Показано <b>{pageItems.length}</b> из <b>{results.length}</b> публикаций</span>{resultPage < pages && <span className="results-scroll-hint"><ChevronDown size={14}/>Листайте вниз — покажем ещё</span>}</div>
+    <section className="design-card results-design-card"><div className="design-card-heading"><div><h2>Найдено <strong>{results.length}</strong> публикаций</h2><p>Показываем отдельные размещения с прямыми ссылками на источник</p></div><label className="sort-control">Сортировка<select value={sort} onChange={event => setSort(event.target.value as 'relevance' | 'newest')}><option value="relevance">По релевантности</option><option value="newest">Сначала новые</option></select></label></div>
+      <div className="result-rows">{pageItems.map(item => <article key={item.id} className="result-row"><input aria-label={`Выбрать публикацию: ${item.title}`} type="checkbox" checked={selected.includes(item.id)} onChange={() => toggle(item.id)}/><button type="button" onClick={() => onOpen(item)} className={`result-photo publication-thumb ${item.image ? 'has-image' : 'no-image'}`}>{item.image ? <img className="media-photo" src={item.image} alt="" loading="lazy"/> : <span className="publication-thumb-empty"><ImageOff size={18}/></span>}<span className={`platform-badge ${item.platform.toLowerCase()}`}>{item.platform === 'OK' ? '✦' : item.platform === 'MAX' ? '●' : 'ᴠκ'}</span></button><div className="result-copy"><div className="result-title-line"><button type="button" onClick={() => onOpen(item)} className="result-title">{item.title}</button><a href={item.url} target="_blank" rel="noreferrer" className="original-link" title="Открыть оригинал"><ExternalLink size={15}/></a></div><p>{item.excerpt}</p><div className="result-metadata"><span><Users size={12}/>{item.source}</span><span>{item.date}</span></div><div className="result-engagement"><span><Heart size={13}/>{item.likes}</span><span><Eye size={13}/>{item.views}</span><span><Share2 size={13}/>{item.reposts}</span><span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span></div></div></article>)}</div>
+      <div className="results-pagination"><span>Показано <b>{pageItems.length}</b> из <b>{results.length}</b> публикаций</span>{resultPage < pages && <span className="results-scroll-hint">Листайте вниз — покажем ещё</span>}</div>
       <div ref={loadMoreRef} aria-hidden="true" className="results-load-sentinel"/>
     </section>
     </> : <div className="results-empty-state"><span><Search size={24}/></span><h2>Введите запрос, чтобы начать поиск</h2><p>Результаты публикаций появятся здесь сразу после нажатия кнопки «Найти».</p></div>}
   </div>
 }
 
-function PublicationPage({ item, onBack }: { item: Publication; onBack: () => void }) {
+function PublicationPage({ item, position, total, onNavigate, onBack }: { item: Publication; position: number; total: number; onNavigate: (offset: number) => void; onBack: () => void }) {
   const [liked, setLiked] = useState(false)
+  useEffect(() => { setLiked(false) }, [item.id])
+  const [savedIds, setSavedIds] = useState<number[]>(() => {
+    try {
+      const stored: unknown = JSON.parse(window.localStorage.getItem('krasnopars-saved-publications') || '[]')
+      return Array.isArray(stored) ? stored.filter((id): id is number => typeof id === 'number') : []
+    } catch {
+      return []
+    }
+  })
+  const saved = savedIds.includes(item.id)
+  const toggleSaved = () => setSavedIds(current => {
+    const next = current.includes(item.id) ? current.filter(id => id !== item.id) : [...current, item.id]
+    try { window.localStorage.setItem('krasnopars-saved-publications', JSON.stringify(next)) } catch { /* Storage may be unavailable. */ }
+    return next
+  })
 
   return <div className="publication-page">
-    <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+    <div className="publication-toolbar">
+      <button type="button" className="publication-back" onClick={onBack}><ArrowLeft size={15}/>Назад к результатам</button>
+      <div className="publication-navigation" aria-label="Навигация по публикациям">
+        <button type="button" aria-label="Предыдущая публикация" disabled={position <= 0} onClick={() => onNavigate(-1)}><ChevronLeft size={18}/></button>
+        <span>{position >= 0 ? position + 1 : '—'} из {total}</span>
+        <button type="button" aria-label="Следующая публикация" disabled={position < 0 || position >= total - 1} onClick={() => onNavigate(1)}><ChevronRight size={18}/></button>
+      </div>
+    </div>
     <div className="publication-layout">
       <article className="publication-card">
         <header className="publication-header">
-          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{item.source.slice(0, 1)}</div>
+          <div className="publication-source-avatar" style={{ backgroundColor: item.color }}>{position >= 0 ? position + 1 : item.source.slice(0, 1)}</div>
           <div><strong>{item.source}</strong><span>{item.date}</span></div>
-          <span className={`publication-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span>
         </header>
-        <img className="publication-cover" src={item.image} alt={item.title}/>
+        {item.image
+          ? <img className="publication-cover" src={item.image} alt={item.title}/>
+          : <div className="publication-cover publication-cover--empty"><ImageOff size={26}/><span>В публикации нет изображения</span></div>}
         <div className="publication-content">
           <span className={`match-label ${item.kind === 'По теме' ? 'match-direct' : ''}`}>{item.kind}</span>
           <h1>{item.title}</h1>
@@ -754,10 +1124,27 @@ function PublicationPage({ item, onBack }: { item: Publication; onBack: () => vo
           <a href={item.url} target="_blank" rel="noreferrer">Открыть оригинал <ExternalLink size={14}/></a>
         </footer>
       </article>
-      <aside className="publication-info">
-        <h2>О публикации</h2>
-        <dl><div><dt>Источник</dt><dd>{item.source}</dd></div><div><dt>Площадка</dt><dd>{platformLabel[item.platform]}</dd></div><div><dt>Дата публикации</dt><dd>{item.date}</dd></div><div><dt>Соответствие запросу</dt><dd>{item.kind}</dd></div></dl>
-        <button type="button"><Bookmark size={15}/>Сохранить публикацию</button>
+      <aside className="publication-aside-column">
+        <section className="publication-info">
+          <div className="publication-info-heading"><span><Newspaper size={20}/></span><div><h2>О публикации</h2><p>Основные сведения</p></div></div>
+          <dl>
+            <div className="publication-info-row"><span className="publication-info-icon"><Users size={17}/></span><div className="publication-info-copy"><dt>Источник</dt><dd>{item.source}</dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><PlatformBadge platform={item.platform} size={20}/></span><div className="publication-info-copy"><dt>Площадка</dt><dd><span className={`publication-info-platform ${item.platform.toLowerCase()}`}>{platformLabel[item.platform]}</span></dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><CalendarDays size={17}/></span><div className="publication-info-copy"><dt>Дата публикации</dt><dd>{item.date}</dd></div></div>
+            <div className="publication-info-row"><span className="publication-info-icon"><Check size={17}/></span><div className="publication-info-copy"><dt>Соответствие запросу</dt><dd><span className="publication-info-match">{item.kind}</span></dd></div></div>
+          </dl>
+          <button type="button" className={`publication-primary-action ${saved ? 'publication-saved' : ''}`} onClick={toggleSaved}><Bookmark size={16}/>{saved ? 'Сохранено в браузере' : 'Сохранить публикацию'}</button>
+        </section>
+        <section className="publication-sentiment" aria-label="Эмоциональность публикации">
+          <div className="publication-sentiment-command">
+            <div className="publication-sentiment-heading"><span><TrendingUp size={20}/></span><div><h2>Эмоциональность</h2><p>Анализ тональности текста</p></div></div>
+            <div className="publication-sentiment-summary"><span><CircleHelp size={17}/></span><div><small>Общий тон</small><strong>Нет данных</strong></div></div>
+          </div>
+          <div className="publication-sentiment-bars">
+            {(['Позитивная', 'Нейтральная', 'Негативная'] as const).map(tone => <div className="sentiment-row" key={tone}><div><span>{tone}</span><b>—</b></div><i aria-hidden="true"/></div>)}
+            <p className="publication-sentiment-unavailable">Сервер пока не передаёт оценку тональности.</p>
+          </div>
+        </section>
       </aside>
     </div>
   </div>
@@ -786,19 +1173,100 @@ function AnalyticsPage() {
   </div>
 }
 
-function SourcesPage({ sources, onAdd, onEdit, onToggle, onDelete }: { sources: Source[]; onAdd: () => void; onEdit: (source: Source) => void; onToggle: (id: number) => void; onDelete: (id: number) => void }) {
-  return <section className="repository-sources"><div className="repository-source-heading"><div><div className="repository-kicker"><Users size={13}/>Справочник</div><h1>Источники публикаций</h1><p>Сообщества и каналы для поиска по выбранному списку</p></div><button onClick={onAdd}><Plus size={15}/>Добавить источник</button></div>
-    <div className="panel repository-source-list"><div className="repository-source-list-head"><div><h2>Мой список</h2><p>{sources.length} источников · нажмите, чтобы выбрать для поиска</p></div><button onClick={() => sources.filter(item => !item.active).forEach(item => onToggle(item.id))}>Выбрать все</button></div>
-      <div>{sources.map(source => <div key={source.id} className="repository-source-row"><button onClick={() => onToggle(source.id)} aria-label={`Выбрать ${source.name}`} className={`repository-check ${source.active ? 'checked' : ''}`}><Check size={12}/></button><button onClick={() => onEdit(source)} style={{backgroundColor:`${source.color}18`,color:source.color}} className="repository-source-avatar">{source.name.slice(0,1)}</button><div className="repository-source-copy"><button onClick={() => onEdit(source)}>{source.name}</button><a href={source.url} target="_blank" rel="noreferrer">{source.url.replace(/^https?:\/\//, '')}<ExternalLink size={9}/></a></div><span className={`repository-platform ${source.platform.toLowerCase()}`}>{source.platform === 'OK' ? 'ОДНОКЛАССНИКИ' : source.platform}</span><span className="repository-followers">{source.followers}</span><span className={`repository-status ${source.active ? '' : 'offline'}`}><i/>{source.active ? 'Доступен' : 'Отключён'}</span><button onClick={() => onDelete(source.id)} className="repository-delete" aria-label={`Удалить ${source.name}`}>×</button></div>)}</div>
-      <div className="repository-source-note">Сохранённые источники остаются в списке для следующих поисков. Добавление и доступность показаны в демо-режиме.</div>
+function SourcesPage({ sources, deselectedSourceIds, onAdd, onEdit, onToggleSelection, onToggleAllSelection, onToggleActive, onDelete, onDeleteAll }: { sources: Source[]; deselectedSourceIds: number[]; onAdd: () => void; onEdit: (source: Source) => void; onToggleSelection: (id: number) => void; onToggleAllSelection: (selected: boolean) => void; onToggleActive: (id: number) => void; onDelete: (id: number) => void; onDeleteAll: () => void }) {
+  const [searchDraft, setSearchDraft] = useState('')
+  const [searchQuery, setSearchQuery] = useState('')
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null)
+  const searchLabelRef = useRef<HTMLLabelElement>(null)
+  const activeSources = sources.filter(source => source.active)
+  const selectedCount = activeSources.filter(source => !deselectedSourceIds.includes(source.id)).length
+  const allSelected = activeSources.length > 0 && selectedCount === activeSources.length
+  const visibleSources = sources.filter(source => `${source.name} ${source.url} ${platformLabel[source.platform]}`.toLocaleLowerCase('ru').includes(searchQuery.trim().toLocaleLowerCase('ru')))
+  const showSearchGlint = () => {
+    const label = searchLabelRef.current
+    if (label) {
+      label.classList.remove('is-shining')
+      void label.offsetWidth
+      label.classList.add('is-shining')
+    }
+  }
+  const runSourceSearch = (event: FormEvent) => {
+    event.preventDefault()
+    showSearchGlint()
+    setSearchQuery(searchDraft)
+  }
+
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (!(event.target instanceof Element && event.target.closest('.source-directory-menu'))) setOpenMenuId(null)
+    }
+    const closeEscape = (event: globalThis.KeyboardEvent) => { if (event.key === 'Escape') setOpenMenuId(null) }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape) }
+  }, [])
+
+  return <section className="repository-sources sources-reference-page">
+    <form className="source-directory-search" onSubmit={runSourceSearch}>
+      <label ref={searchLabelRef} onPointerDown={showSearchGlint}><Search size={24}/><input value={searchDraft} onChange={event => { setSearchDraft(event.target.value); if (!event.target.value) setSearchQuery('') }} placeholder="Введите название источника" aria-label="Название источника"/></label>
+      <button type="submit"><Search size={20}/>Найти</button>
+    </form>
+    <div className="source-directory-list">
+      <header className="source-directory-header">
+        <label className="source-directory-select-all"><input type="checkbox" aria-label="Выбрать все источники для поиска" checked={allSelected} disabled={!activeSources.length} onChange={() => onToggleAllSelection(!allSelected)}/><span><strong>Мой список</strong><small>{sources.length} источников · {selectedCount} выбраны для поиска</small></span></label>
+        <div className="source-directory-header-actions"><button type="button" className="source-directory-remove-all" onClick={onDeleteAll} disabled={!sources.length}><X size={17}/>Удалить все</button><button type="button" className="source-directory-add" onClick={onAdd}><Plus size={20}/>Добавить</button></div>
+      </header>
+      <div className="source-directory-rows">
+        {visibleSources.map(source => <div key={source.id} className="source-directory-row">
+          <button type="button" className={`source-directory-check ${source.active && !deselectedSourceIds.includes(source.id) ? 'checked' : ''}`} onClick={() => onToggleSelection(source.id)} disabled={!source.active} aria-label={`${deselectedSourceIds.includes(source.id) ? 'Выбрать' : 'Убрать из поиска'} ${source.name}`} aria-pressed={source.active && !deselectedSourceIds.includes(source.id)}><Check size={14}/></button>
+          <div className="source-directory-avatar">{source.logoUrl ? <img src={source.logoUrl} alt=""/> : <PlatformBadge platform={source.platform} size={34}/>}</div>
+          <div className="source-directory-copy"><strong>{source.name}</strong></div>
+          <div className="source-directory-state"><PlatformBadge platform={source.platform} size={34}/><span className={source.active ? 'active' : ''}><i/>{source.active ? 'Доступен' : 'Отключён'}</span></div>
+          <div className="source-directory-actions">
+            <div className="source-directory-menu"><button type="button" aria-label={`Действия с ${source.name}`} aria-expanded={openMenuId === source.id} onClick={() => setOpenMenuId(current => current === source.id ? null : source.id)}><MoreHorizontal size={20}/></button>{openMenuId === source.id && <div className="source-directory-dropdown"><button type="button" onClick={() => { setOpenMenuId(null); onEdit(source) }}>Изменить</button><button type="button" onClick={() => { setOpenMenuId(null); onToggleActive(source.id) }}>{source.active ? 'Отключить' : 'Включить'}</button><button type="button" className="danger-action" onClick={() => { setOpenMenuId(null); onDelete(source.id) }}>Удалить</button></div>}</div>
+            <a href={source.url} target="_blank" rel="noreferrer" aria-label={`Открыть ${source.name}`}><ExternalLink size={19}/></a>
+            <button type="button" className="source-directory-delete" onClick={() => onDelete(source.id)} aria-label={`Удалить ${source.name}`}><X size={20}/></button>
+          </div>
+        </div>)}
+        {visibleSources.length === 0 && <div className="source-directory-empty">{sources.length ? 'По этому названию источники не найдены.' : 'Пока нет источников. Добавьте первый источник.'}</div>}
+      </div>
     </div>
   </section>
 }
 
-function SavedPage({ items, onOpen, onRemove, onNew, onFavorite }: { items: SavedQuery[]; onOpen: (item: SavedQuery) => void; onRemove: (id: number) => void; onNew: () => void; onFavorite: (id: number) => void }) {
+function SavedPage({ items, onOpen, onRemove, onRemoveAll, onClearFavorites, onNew, onFavorite }: { items: SavedQuery[]; onOpen: (item: SavedQuery) => void; onRemove: (id: number) => void; onRemoveAll: () => void; onClearFavorites: () => void; onNew: () => void; onFavorite: (id: number) => void }) {
+  const [openActionsId, setOpenActionsId] = useState<number | null>(null)
+  const [bulkMenuOpen, setBulkMenuOpen] = useState(false)
+  const [queryFilter, setQueryFilter] = useState('')
+  const [queryDraft, setQueryDraft] = useState('')
+  const [favoriteFilter, setFavoriteFilter] = useState(false)
+  const [sortBy, setSortBy] = useState<'newest' | 'oldest'>('newest')
+  useEffect(() => {
+    const closeOutside = (event: PointerEvent) => {
+      if (event.target instanceof Element && event.target.closest('.saved-actions, .saved-bulk-actions')) return
+      setOpenActionsId(null)
+      setBulkMenuOpen(false)
+    }
+    const closeEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key === 'Escape') { setOpenActionsId(null); setBulkMenuOpen(false) }
+    }
+    document.addEventListener('pointerdown', closeOutside)
+    document.addEventListener('keydown', closeEscape)
+    return () => { document.removeEventListener('pointerdown', closeOutside); document.removeEventListener('keydown', closeEscape) }
+  }, [])
+  const filteredItems = items.filter(item => {
+    const needle = queryFilter.trim().toLocaleLowerCase('ru')
+    return (!needle || `${item.name} ${item.query}`.toLocaleLowerCase('ru').includes(needle)) && (!favoriteFilter || item.favorite)
+  }).sort((a, b) => sortBy === 'newest' ? Date.parse(b.createdAt ?? '') - Date.parse(a.createdAt ?? '') : Date.parse(a.createdAt ?? '') - Date.parse(b.createdAt ?? ''))
+  const favoriteCount = items.filter(item => item.favorite).length
   return <section className="saved-shell">
-    <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>Быстрый доступ к часто используемым темам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
-    <div className="saved-table-wrap"><table className="saved-queries-table"><thead><tr><th><input type="checkbox" aria-label="Выбрать все запросы"/></th><th>Название</th><th>Запрос</th><th>Период</th><th>Регион</th><th>Действия</th></tr></thead><tbody>{items.map(item => <tr key={item.id}><td><button className={`favorite-star ${item.favorite ? 'favorite-on' : ''}`} title={item.favorite ? 'Убрать из избранного' : 'Добавить в избранное'} onClick={() => onFavorite(item.id)}><Star size={15} fill={item.favorite ? 'currentColor' : 'none'}/></button></td><td><button className="saved-query-name" onClick={() => onOpen(item)}>{item.name}</button></td><td><span className="saved-query-text">{item.query}</span></td><td>{item.period}</td><td>{item.region}</td><td><details className="saved-actions"><summary aria-label="Действия с запросом"><MoreHorizontal size={17}/></summary><div><button onClick={() => onOpen(item)}>Открыть запрос</button><button onClick={() => onFavorite(item.id)}>{item.favorite ? 'Убрать из избранного' : 'В избранное'}</button><button className="danger-action" onClick={() => onRemove(item.id)}>Удалить</button></div></details></td></tr>)}</tbody></table>{items.length === 0 && <div className="empty-state">Пока нет сохранённых запросов</div>}</div>
+    <header className="saved-page-head"><div><h1>Сохранённые запросы</h1><p>История поисков и быстрый доступ к результатам</p></div><button className="button-primary" onClick={onNew}><Plus size={16}/>Новый запрос</button></header>
+    <div className="saved-toolbar">
+      <form className="saved-filter-search" onSubmit={event => { event.preventDefault(); setQueryFilter(queryDraft) }}><Search size={15}/><input value={queryDraft} onChange={event => setQueryDraft(event.target.value)} placeholder="Найти запрос…" aria-label="Найти сохранённый запрос"/><button type="submit" className="saved-filter-submit" aria-label="Найти"><Search size={16}/></button></form>
+      <div className="saved-filter-tabs"><button className={!favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(false)}>Все <span>{items.length}</span></button><button className={favoriteFilter ? 'active' : ''} onClick={() => setFavoriteFilter(true)}><Star size={12}/>Избранное <span>{favoriteCount}</span></button></div>
+      <label className="saved-select-filter saved-sort-filter"><span>Сортировка</span><select value={sortBy} onChange={event => setSortBy(event.target.value as typeof sortBy)}><option value="newest">Сначала новые</option><option value="oldest">Сначала старые</option></select></label>
+    </div>
+    <div className="saved-table-wrap"><table className="saved-queries-table"><thead><tr><th><div className="saved-bulk-actions"><input type="checkbox" aria-label="Массовые действия с запросами" checked={bulkMenuOpen} disabled={!items.length} onChange={() => { setOpenActionsId(null); setBulkMenuOpen(open => !open) }}/>{bulkMenuOpen && <div className="saved-bulk-menu"><button type="button" onClick={() => { setBulkMenuOpen(false); onClearFavorites() }}>Убрать все из избранного</button><button type="button" className="danger-action" onClick={() => { setBulkMenuOpen(false); onRemoveAll() }}>Удалить все запросы</button></div>}</div></th><th>Название</th><th>Запрос</th><th>Период</th><th>Регион</th><th>Действия</th></tr></thead><tbody>{filteredItems.map(item => <tr key={item.id}><td><button className={`favorite-star ${item.favorite ? 'favorite-on' : ''}`} title={item.favorite ? 'Убрать из избранного' : 'Добавить в избранное'} onClick={() => onFavorite(item.id)}><Star size={15} fill={item.favorite ? 'currentColor' : 'none'}/></button></td><td className="saved-name-cell"><button className="saved-query-name" onClick={() => onOpen(item)}>{item.name}</button>{item.createdAt && <small className="saved-last-opened">Создан: {new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(item.createdAt))}</small>}</td><td><span className="saved-query-text">{item.query}</span></td><td>{item.period}</td><td>{item.region}</td><td><details className="saved-actions" open={openActionsId === item.id}><summary aria-label="Действия с запросом" onClick={event => { event.preventDefault(); setBulkMenuOpen(false); setOpenActionsId(current => current === item.id ? null : item.id) }}><MoreHorizontal size={17}/></summary><div><button onClick={() => { setOpenActionsId(null); onOpen(item) }}>Открыть результаты</button><button onClick={() => { setOpenActionsId(null); onFavorite(item.id) }}>{item.favorite ? 'Убрать из избранного' : 'В избранное'}</button><button className="danger-action" onClick={() => { setOpenActionsId(null); onRemove(item.id) }}>Удалить</button></div></details></td></tr>)}</tbody></table>{items.length === 0 ? <div className="saved-empty-state"><Bookmark size={24}/><strong>Пока нет сохранённых запросов</strong><span>Создайте запрос, чтобы быстро возвращаться к его результатам.</span><button className="button-primary" onClick={onNew}><Plus size={15}/>Создать первый запрос</button></div> : filteredItems.length === 0 && <div className="saved-empty-state"><Search size={22}/><strong>По этим фильтрам ничего нет</strong><span>Измените запрос или сбросьте фильтры.</span><button className="soft-action" onClick={() => { setQueryFilter(''); setFavoriteFilter(false) }}>Сбросить фильтры</button></div>}</div>
   </section>
 }
 

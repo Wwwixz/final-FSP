@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "build": "tsc -b && vite build",
+    "build:extension": "tsc -p extension/tsconfig.json && vite build --config extension/vite.config.ts && vite build --config extension/background.vite.config.ts && node extension/scripts/manifests.mjs",
+    "test:extension": "node --test extension/*.test.mjs",
+    "package:extension": "npm run build:extension && node extension/scripts/package.mjs",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {

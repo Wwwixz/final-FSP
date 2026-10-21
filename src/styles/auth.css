@@ -35,6 +35,9 @@
 .auth-error{display:flex;align-items:center;gap:8px;margin:14px 0 0;border:1px solid #f3c2cb;border-radius:8px;background:#fdf0f2;padding:10px 12px;color:#c81e39;font-size:13px;line-height:1.45}
 .auth-submit{display:flex;width:100%;align-items:center;justify-content:center;min-height:54px;margin-top:22px;border:0;border-radius:10px;background:linear-gradient(140deg,#ee2b46,#d91b38);color:#fff;font:700 16px 'Manrope',sans-serif;box-shadow:0 10px 22px #df253840;transition:.15s}
 .auth-submit:hover{background:linear-gradient(140deg,#e0203b,#c91632);box-shadow:0 8px 18px #df253855}
+.auth-guest{display:flex;width:100%;align-items:center;justify-content:center;min-height:50px;margin-top:12px;border:1px solid #b9c9df;border-radius:10px;background:#f3f7fc;color:#27456e;font:700 15px 'Manrope',sans-serif;transition:background .15s,border-color .15s,color .15s}
+.auth-guest:hover{border-color:#7fa9e4;background:#e9f2ff;color:#1f58a8}
+.auth-guest:focus-visible{outline:3px solid #78aaff;outline-offset:2px}
 .auth-alt{display:flex;justify-content:center;gap:5px;margin:20px 0 0;color:#43506a;font-size:14.5px}
 .auth-alt button{border:0;background:none;padding:0;color:#2f6fed;font-weight:600}
 .auth-alt button:hover{text-decoration:underline}
