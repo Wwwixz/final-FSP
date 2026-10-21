@@ -106,8 +106,7 @@ export type SavedQueryInput = { name: string; query: string; period?: string; re
 
 const configuredBaseUrl = (import.meta as ImportMeta & { env?: Record<string, string> }).env?.VITE_API_BASE_URL
 const isLocal = typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
-const isBrowserExtension = typeof window !== 'undefined' && ['chrome-extension:', 'moz-extension:'].includes(window.location.protocol)
-export const API_BASE_URL = (configuredBaseUrl || (isLocal || isBrowserExtension ? 'http://109.196.167.225:8080' : 'https://krasnoyarsk.calonders.ru')).replace(/\/$/, '')
+export const API_BASE_URL = (configuredBaseUrl || (isLocal ? 'http://109.196.167.225:8080' : 'https://krasnoyarsk.calonders.ru')).replace(/\/$/, '')
 
 export class ApiError extends Error {
   status: number
